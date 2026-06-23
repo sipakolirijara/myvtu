@@ -30,7 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/mobile/register.php'),
+        Uri.parse('https://vtu.kainuwa.africa/api/mobile/register.php'),
         body: {
           'first_name': _firstNameController.text.trim(),
           'last_name': _lastNameController.text.trim(),
@@ -47,7 +47,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Account created! Please log in.'), backgroundColor: Colors.green),
           );
-          Navigator.pop(context); // Go back to login
+          Navigator.pop(context); 
         } else {
           _showError(data['message'] ?? 'Registration failed');
         }

@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/mobile/login.php'),
+        Uri.parse('https://vtu.kainuwa.africa/api/mobile/login.php'),
         body: {
           'email': email,
           'password': password,
