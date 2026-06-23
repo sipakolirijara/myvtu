@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'data_purchase_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -38,7 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                _buildServicesGrid(),
+                _buildServicesGrid(context),
                 const SizedBox(height: 30),
               ],
             ),
@@ -205,7 +206,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildServicesGrid() {
+  Widget _buildServicesGrid(BuildContext context) {
     return GridView.count(
       crossAxisCount: 4,
       shrinkWrap: true,
@@ -213,7 +214,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisSpacing: 15,
       mainAxisSpacing: 20,
       children: [
-        _buildServiceItem(Icons.wifi, 'Data', const Color(0xFFE0E7FF), const Color(0xFF7351FF)),
+        _buildServiceItem(
+          Icons.wifi, 
+          'Data', 
+          const Color(0xFFE0E7FF), 
+          const Color(0xFF7351FF),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DataPurchaseScreen()),
+            );
+          },
+        ),
         _buildServiceItem(Icons.phone_android, 'Airtime', const Color(0xFFE8F5E9), const Color(0xFF4CAF50)),
         _buildServiceItem(Icons.tv, 'Cable TV', const Color(0xFFFFF3E0), const Color(0xFFFF9800)),
         _buildServiceItem(Icons.bolt, 'Electricity', const Color(0xFFFFEBEE), const Color(0xFFF44336)),
@@ -223,27 +235,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildServiceItem(IconData icon, String label, Color bgColor, Color iconColor) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildServiceItem(IconData icon, String label, Color bgColor, Color iconColor, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
-          child: Icon(icon, color: iconColor, size: 24),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 

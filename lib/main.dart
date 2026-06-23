@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
   SystemChrome.setSystemUIOverlayStyle(
@@ -24,14 +24,14 @@ class KainuwaApp extends StatelessWidget {
         primaryColor: const Color(0xFF7351FF),
         scaffoldBackgroundColor: const Color(0xFFF4F6F9),
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7351FF)),
-        fontFamily: 'Roboto', // Defaulting to clean sans-serif
+        fontFamily: 'Roboto',
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.black87),
         ),
       ),
-      home: const DashboardScreen(),
+      home: const LoginScreen(),
     );
   }
 }
