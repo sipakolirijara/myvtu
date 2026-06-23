@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'transaction_status_screen.dart';
 
 class AirtimePurchaseScreen extends StatefulWidget {
   const AirtimePurchaseScreen({Key? key}) : super(key: key);
@@ -33,9 +34,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true && mounted) {
-          setState(() => _balance = data['balance']);
-        }
+        if (data['success'] == true && mounted) setState(() => _balance = data['balance']);
       }
     } catch (_) {}
   }
@@ -108,22 +107,36 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
           'phone': _phoneController.text.trim(),
         },
       );
+      
       final data = json.decode(response.body);
-      if (data['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Successful!'), backgroundColor: Colors.green));
-        setState(() {
-          _phoneController.clear();
-          _amountController.clear();
-        });
-        _fetchBalance(); // Refresh balance
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Failed'), backgroundColor: Colors.redAccent));
-      }
+      _navigateToStatus(data['success'] == true, data['message'] ?? 'Transaction processed.');
+      
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error'), backgroundColor: Colors.redAccent));
+      _navigateToStatus(false, 'Network connection timed out. Please check your internet and try again.');
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
     }
+  }
+
+  void _navigateToStatus(bool isSuccess, String message) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionStatusScreen(
+          isSuccess: isSuccess,
+          message: message,
+          onDone: () {
+            if (isSuccess) {
+              setState(() {
+                _phoneController.clear();
+                _amountController.clear();
+              });
+            }
+            _fetchBalance();
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -207,7 +220,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20), 
           hintText: hint, 
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal), // Fix for bold placeholder
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal), 
           border: InputBorder.none, 
           contentPadding: const EdgeInsets.symmetric(vertical: 16)
         ),
