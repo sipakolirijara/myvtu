@@ -15,19 +15,90 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
   final _phoneController = TextEditingController();
   final _amountController = TextEditingController();
   bool _isPurchasing = false;
+  String _balance = '...';
 
-  Future<void> _buyAirtime() async {
-    if (_selectedNetwork.isEmpty || _phoneController.text.length < 10 || _amountController.text.isEmpty) {
-      _showError('Please complete all fields correctly.');
-      return;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _fetchBalance();
+  }
 
-    setState(() => _isPurchasing = true);
-
+  Future<void> _fetchBalance() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
+      final response = await http.post(
+        Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'),
+        body: {'token': token},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && mounted) {
+          setState(() => _balance = data['balance']);
+        }
+      }
+    } catch (_) {}
+  }
 
+  void _showConfirmationModal() {
+    if (_selectedNetwork.isEmpty || _phoneController.text.length < 10 || _amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete all fields'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Confirm Top-up', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              const SizedBox(height: 20),
+              _buildConfirmRow('Network', _selectedNetwork),
+              _buildConfirmRow('Phone Number', _phoneController.text),
+              _buildConfirmRow('Amount', '₦${_amountController.text}', isAmount: true),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _buyAirtime();
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: const Text('Confirm & Pay', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              )
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  Widget _buildConfirmRow(String label, String value, {bool isAmount = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+          Text(value, style: TextStyle(color: isAmount ? const Color(0xFF4CAF50) : Colors.black87, fontSize: 15, fontWeight: isAmount ? FontWeight.bold : FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _buyAirtime() async {
+    setState(() => _isPurchasing = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('api_token') ?? '';
       final response = await http.post(
         Uri.parse('https://vtu.kainuwa.africa/api/mobile/buy_airtime.php'),
         body: {
@@ -37,30 +108,22 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
           'phone': _phoneController.text.trim(),
         },
       );
-
       final data = json.decode(response.body);
       if (data['success'] == true) {
-        _showSuccess(data['message'] ?? 'Airtime top-up successful!');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Successful!'), backgroundColor: Colors.green));
         setState(() {
           _phoneController.clear();
           _amountController.clear();
         });
+        _fetchBalance(); // Refresh balance
       } else {
-        _showError(data['message'] ?? 'Transaction failed.');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Failed'), backgroundColor: Colors.redAccent));
       }
     } catch (e) {
-      _showError('Network error connecting to API.');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error'), backgroundColor: Colors.redAccent));
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
     }
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.redAccent));
-  }
-
-  void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
   }
 
   @override
@@ -68,8 +131,20 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
-        title: const Text('Buy Airtime VTU', style: TextStyle(color: Color(0xFF1E1E1E), fontWeight: FontWeight.bold, fontSize: 20)),
+        title: const Text('Buy Airtime', style: TextStyle(color: Color(0xFF1E1E1E), fontWeight: FontWeight.bold, fontSize: 18)),
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20), onPressed: () => Navigator.pop(context)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: const Color(0xFF4CAF50).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                child: Text('₦$_balance', style: const TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.bold)),
+              ),
+            ),
+          )
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -80,24 +155,21 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
             const SizedBox(height: 12),
             _buildNetworkSelector(),
             const SizedBox(height: 24),
-            
             const Text('2. Phone Number', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
             const SizedBox(height: 12),
-            _buildTextField(Icons.smartphone, '08012345678', _phoneController),
+            _buildTextField(Icons.smartphone, 'e.g 08012345678', _phoneController),
             const SizedBox(height: 24),
-            
             const Text('3. Amount (₦)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
             const SizedBox(height: 12),
-            _buildTextField(Icons.payments_outlined, 'e.g. 500', _amountController),
+            _buildTextField(Icons.payments_outlined, 'e.g 500', _amountController),
             const SizedBox(height: 40),
-            
             SizedBox(
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _isPurchasing ? null : _buyAirtime,
+                onPressed: _isPurchasing ? null : _showConfirmationModal,
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                child: _isPurchasing ? const CircularProgressIndicator(color: Colors.white) : const Text('Top-up Airtime Now', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: _isPurchasing ? const CircularProgressIndicator(color: Colors.white) : const Text('Proceed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ),
           ],
@@ -117,11 +189,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
           child: Container(
             width: 75,
             padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.white,
-              border: Border.all(color: isSelected ? const Color(0xFF4CAF50) : Colors.grey.shade300, width: isSelected ? 2 : 1),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.white, border: Border.all(color: isSelected ? const Color(0xFF4CAF50) : Colors.grey.shade300, width: isSelected ? 2 : 1), borderRadius: BorderRadius.circular(12)),
             child: Center(child: Text(network, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? const Color(0xFF4CAF50) : Colors.grey.shade600))),
           ),
         );
@@ -136,7 +204,13 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
         controller: controller,
         keyboardType: TextInputType.number,
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        decoration: InputDecoration(prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20), hintText: hint, border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 16)),
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20), 
+          hintText: hint, 
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal), // Fix for bold placeholder
+          border: InputBorder.none, 
+          contentPadding: const EdgeInsets.symmetric(vertical: 16)
+        ),
       ),
     );
   }
