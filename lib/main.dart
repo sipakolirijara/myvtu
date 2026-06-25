@@ -1,37 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
+import 'screens/dashboard_screen.dart';
 
 void main() {
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
-  runApp(const KainuwaApp());
+  runApp(const MyApp());
 }
 
-class KainuwaApp extends StatelessWidget {
-  const KainuwaApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  Future<String?> _getValidToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('api_token');
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Kainuwa VTU',
-      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: const Color(0xFF7351FF),
+        primaryColor: Colors.blue, // Dynamic theming anchor
         scaffoldBackgroundColor: const Color(0xFFF4F6F9),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7351FF)),
-        fontFamily: 'Roboto',
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: IconThemeData(color: Colors.black87),
-        ),
       ),
-      home: const LoginScreen(),
+      home: FutureBuilder<String?>(
+        future: _getValidToken(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          
+          if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+            return const DashboardScreen();
+          }
+          
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }

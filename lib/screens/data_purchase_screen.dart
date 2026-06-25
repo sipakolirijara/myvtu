@@ -16,6 +16,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
   String? _selectedCategory;
   String? _selectedPlanId;
   final _phoneController = TextEditingController();
+  final _pinController = TextEditingController();
   
   bool _isLoadingPlans = false;
   bool _isPurchasing = false;
@@ -42,7 +43,9 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true && mounted) setState(() => _balance = data['balance']);
+        if (data['success'] == true && mounted) {
+          setState(() => _balance = data['balance']);
+        }
       }
     } catch (_) {}
   }
@@ -58,7 +61,9 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true && mounted) setState(() => _allPlans = data['plans']);
+        if (data['success'] == true && mounted) {
+          setState(() => _allPlans = data['plans']);
+        }
       }
     } finally {
       if (mounted) setState(() => _isLoadingPlans = false);
@@ -92,10 +97,14 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 24, right: 24, top: 24,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,19 +115,42 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
               _buildConfirmRow('Phone Number', _phoneController.text),
               _buildConfirmRow('Data Plan', selectedPlan['plan_name']),
               _buildConfirmRow('Amount', '₦${selectedPlan['retail_price']}', isAmount: true),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+              const Text('Enter Transaction PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _pinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  hintText: '****',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
-                    _buyData();
+                    if (_pinController.text.length == 4) {
+                      Navigator.pop(context);
+                      _buyData();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 4-digit PIN')));
+                    }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7351FF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7351FF), 
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                  ),
                   child: const Text('Confirm & Pay', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-              )
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         );
@@ -151,6 +183,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
           'network': _selectedNetwork,
           'plan_id': _selectedPlanId.toString(),
           'phone': _phoneController.text.trim(),
+          'pin': _pinController.text.trim(),
         },
       );
       
@@ -161,6 +194,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       _navigateToStatus(false, 'Network connection timed out. Please check your internet and try again.');
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
+      _pinController.clear();
     }
   }
 
