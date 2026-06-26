@@ -41,19 +41,47 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   void _openReceipt(dynamic t) {
-    final isCredit = t['type'] == 'credit';
     final isSuccess = t['status'] == 'success';
-    
-    // Formatting the exact decimal value to 2 places
     final amountFormatted = double.tryParse(t['amount'].toString())?.toStringAsFixed(2) ?? '0.00';
+    final category = t['category'].toString();
 
-    final txData = {
-      'Service': t['category'].toString().toUpperCase().replaceAll('_', ' '),
+    String serviceTitle = 'Transaction';
+    Map<String, dynamic> rawTxData = {
       'Reference': t['reference'] ?? 'N/A',
-      'Target/Phone': t['recipient_target'] ?? 'N/A',
       'Amount': '₦$amountFormatted',
       'Date': t['created_at'],
       'Status': t['status'].toString().toUpperCase(),
+    };
+
+    // SMART TRANSACTION PARSING
+    if (category == 'wallet_funding') {
+      serviceTitle = 'Wallet Funding';
+      rawTxData['Service'] = serviceTitle;
+    } else if (category == 'vtu_purchase') {
+      if (t['service_type'] == 'data') {
+        serviceTitle = 'Data Purchase';
+        rawTxData['Service'] = serviceTitle;
+        rawTxData['Plan'] = t['plan_name'] ?? 'Data Plan';
+        rawTxData['Phone Number'] = t['recipient_target'] ?? 'N/A';
+      } else {
+        serviceTitle = 'Airtime Purchase';
+        rawTxData['Service'] = serviceTitle;
+        rawTxData['Phone Number'] = t['recipient_target'] ?? 'N/A';
+      }
+    } else {
+      serviceTitle = category.toUpperCase().replaceAll('_', ' ');
+      rawTxData['Service'] = serviceTitle;
+    }
+
+    // ORDERING THE DICTIONARY FOR CLEAN UI
+    final Map<String, dynamic> finalTxData = {
+      'Service': rawTxData['Service'],
+      if (rawTxData.containsKey('Plan')) 'Plan': rawTxData['Plan'],
+      if (rawTxData.containsKey('Phone Number')) 'Phone Number': rawTxData['Phone Number'],
+      'Reference': rawTxData['Reference'],
+      'Amount': rawTxData['Amount'],
+      'Date': rawTxData['Date'],
+      'Status': rawTxData['Status'],
     };
 
     Navigator.push(
@@ -62,7 +90,7 @@ class _WalletScreenState extends State<WalletScreen> {
         builder: (_) => TransactionStatusScreen(
           isSuccess: isSuccess,
           message: isSuccess ? 'Transaction was successful' : 'Transaction failed or is pending',
-          transactionData: txData,
+          transactionData: finalTxData,
           onDone: () => Navigator.pop(context),
         ),
       ),
@@ -96,6 +124,12 @@ class _WalletScreenState extends State<WalletScreen> {
                   final isCredit = t['type'] == 'credit';
                   final amountStr = double.tryParse(t['amount'].toString())?.toStringAsFixed(2) ?? '0.00';
                   
+                  // Clean UI Title
+                  String displayTitle = t['category'].toString().toUpperCase().replaceAll('_', ' ');
+                  if (t['category'] == 'vtu_purchase') {
+                      displayTitle = t['service_type'] == 'data' ? 'DATA PURCHASE' : 'AIRTIME PURCHASE';
+                  }
+                  
                   return GestureDetector(
                     onTap: () => _openReceipt(t),
                     child: Container(
@@ -113,7 +147,7 @@ class _WalletScreenState extends State<WalletScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(t['category'].toString().toUpperCase().replaceAll('_', ' '), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                 const SizedBox(height: 4),
                                 Text(t['created_at'], style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
                               ],
