@@ -1,44 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _fetchAndCacheSettings();
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+Future<void> _fetchAndCacheSettings() async {
+  try {
+    final response = await http.get(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_settings.php')).timeout(const Duration(seconds: 5));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success'] == true) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('app_name', data['settings']['website_name'] ?? 'Kainuwa VTU');
+        await prefs.setString('primary_color', data['settings']['primary_color'] ?? '#7351FF');
+      }
+    }
+  } catch (_) {}
+}
 
-  Future<String?> _getValidToken() async {
+class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  Color _primaryColor = const Color(0xFF7351FF);
+  String? _initialRoute;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitData();
+  }
+
+  Future<void> _loadInitData() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('api_token');
+    
+    // Load Dynamic Color
+    final hexColor = prefs.getString('primary_color') ?? '#7351FF';
+    setState(() {
+      _primaryColor = Color(int.parse(hexColor.replaceAll('#', '0xFF')));
+    });
+
+    // Check Login State
+    final token = prefs.getString('api_token');
+    setState(() {
+      _initialRoute = (token != null && token.isNotEmpty) ? 'dashboard' : 'login';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_initialRoute == null) {
+      return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
+    }
+
     return MaterialApp(
-      title: 'Kainuwa VTU',
+      title: 'Dynamic VTU App',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: Colors.blue, // Dynamic theming anchor
+        primaryColor: _primaryColor,
+        colorScheme: ColorScheme.fromSeed(seedColor: _primaryColor),
         scaffoldBackgroundColor: const Color(0xFFF4F6F9),
       ),
-      home: FutureBuilder<String?>(
-        future: _getValidToken(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          
-          if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-            return const DashboardScreen();
-          }
-          
-          return const LoginScreen();
-        },
-      ),
+      home: _initialRoute == 'dashboard' ? const DashboardScreen() : const LoginScreen(),
     );
   }
 }
