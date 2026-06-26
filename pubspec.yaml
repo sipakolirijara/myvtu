@@ -30,6 +30,6 @@ flutter:
 
 flutter_launcher_icons:
   android: "ic_launcher"
-  ios: true
+  ios: false
   image_path: "assets/icon.png"
   min_sdk_android: 21
