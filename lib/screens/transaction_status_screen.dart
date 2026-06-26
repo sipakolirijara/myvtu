@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:screenshot/screenshot.dart';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 
 class TransactionStatusScreen extends StatefulWidget {
   final bool isSuccess;
@@ -23,25 +25,35 @@ class TransactionStatusScreen extends StatefulWidget {
 }
 
 class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
-  final ScreenshotController screenshotController = ScreenshotController();
+  // Native Flutter key to capture the specific UI element
+  final GlobalKey _receiptKey = GlobalKey();
   bool _isSharing = false;
 
   Future<void> _shareReceipt() async {
     setState(() => _isSharing = true);
     try {
-      final imageBytes = await screenshotController.capture(delay: const Duration(milliseconds: 10));
-      if (imageBytes != null) {
+      // 1. Give the UI a tiny fraction of a second to ensure it is fully painted
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 2. Capture the UI boundary natively
+      RenderRepaintBoundary boundary = _receiptKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData != null) {
+        // 3. Save to phone's temporary directory
         final directory = await getApplicationDocumentsDirectory();
         final imagePath = await File('${directory.path}/kainuwa_receipt.png').create();
-        await imagePath.writeAsBytes(imageBytes);
+        await imagePath.writeAsBytes(byteData.buffer.asUint8List());
         
+        // 4. Trigger Native Android Share Menu
         await Share.shareXFiles(
           [XFile(imagePath.path)], 
           text: 'Transaction Receipt from Kainuwa VTU'
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to share receipt')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to generate receipt image.')));
     } finally {
       if (mounted) setState(() => _isSharing = false);
     }
@@ -50,7 +62,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () async => false, // Prevent back button
+      onWillPop: () async => false, // Prevent physical back button
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F6F9),
         appBar: AppBar(
@@ -69,9 +81,9 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Column(
               children: [
-                // THE RECEIPT CARD (Wrapped in Screenshot)
-                Screenshot(
-                  controller: screenshotController,
+                // THE RECEIPT CARD (Wrapped in native RepaintBoundary)
+                RepaintBoundary(
+                  key: _receiptKey,
                   child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -136,7 +148,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
                 
                 const SizedBox(height: 40),
                 
-                // ACTION BUTTONS (Not included in the screenshot)
+                // ACTION BUTTONS (Not included in the screenshot capture)
                 Row(
                   children: [
                     Expanded(
@@ -177,7 +189,6 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
   }
 
   Widget _buildReceiptRow(String title, String value) {
-    // Highlight the Amount or Status
     final isHighlight = title.toLowerCase() == 'amount' || title.toLowerCase() == 'status';
     final isStatus = title.toLowerCase() == 'status';
     
