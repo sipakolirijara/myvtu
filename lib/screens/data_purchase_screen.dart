@@ -191,20 +191,21 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       _navigateToStatus(data['success'] == true, data['message'] ?? 'Transaction processed.');
       
     } catch (e) {
-      _navigateToStatus(false, 'Network connection timed out. Please check your internet and try again.');
+      _navigateToStatus(false, 'Network connection timed out. Please check your internet and try again.', txData: {'Service': 'Data Purchase', 'Network': _selectedNetwork, 'Phone Number': _phoneController.text, 'Status': 'Failed', 'Date': DateTime.now().toString().split('.')[0]});
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
       _pinController.clear();
     }
   }
 
-  void _navigateToStatus(bool isSuccess, String message) {
+  void _navigateToStatus(bool isSuccess, String message, {Map<String, dynamic>? txData}) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => TransactionStatusScreen(
           isSuccess: isSuccess,
           message: message,
+          transactionData: txData,
           onDone: () {
             if (isSuccess) {
               setState(() {

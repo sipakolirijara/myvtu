@@ -148,13 +148,14 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
     }
   }
 
-  void _navigateToStatus(bool isSuccess, String message) {
+  void _navigateToStatus(bool isSuccess, String message, {Map<String, dynamic>? txData}) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => TransactionStatusScreen(
           isSuccess: isSuccess,
           message: message,
+          transactionData: txData,
           onDone: () {
             if (isSuccess) {
               setState(() {
