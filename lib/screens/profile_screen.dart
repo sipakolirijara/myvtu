@@ -40,7 +40,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showSetPinDialog() {
+  void _showSetPinDialog(bool requireCurrent) {
+    final currentPinController = TextEditingController();
     final pinController = TextEditingController();
     showDialog(
       context: context,

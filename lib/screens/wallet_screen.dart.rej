@@ -1,0 +1,20 @@
+--- lib/screens/wallet_screen.dart
++++ lib/screens/wallet_screen.dart
+@@ -87,14 +87,17 @@
+                 itemCount: _transactions.length,
+                 itemBuilder: (context, index) {
+                   final t = _transactions[index];
+                   final isCredit = t['type'] == 'credit';
+                   final amountStr = double.tryParse(t['amount'].toString())?.toStringAsFixed(2) ?? '0.00';
++                  final rawStatus = t['status'].toString().toLowerCase();
++                  final statusColor = rawStatus == 'success' || rawStatus == 'successful' ? Colors.green : (rawStatus == 'pending' ? Colors.orange : Colors.red);
++                  final bgStatusColor = isCredit ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1);
+                   
+                   return GestureDetector(
+                     onTap: () => _openReceipt(t),
+                     child: Container(
+                       margin: const EdgeInsets.only(bottom: 12),
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade100)),
+                       child: Row(
+                         children: [

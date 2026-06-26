@@ -1,0 +1,46 @@
+--- lib/screens/wallet_screen.dart
++++ lib/screens/wallet_screen.dart
+@@ -87,14 +87,17 @@
+                 itemCount: _transactions.length,
+                 itemBuilder: (context, index) {
+                   final t = _transactions[index];
+                   final isCredit = t['type'] == 'credit';
+                   final amountStr = double.tryParse(t['amount'].toString())?.toStringAsFixed(2) ?? '0.00';
++                  final rawStatus = t['status'].toString().toLowerCase();
++                  final statusColor = rawStatus == 'success' || rawStatus == 'successful' ? Colors.green : (rawStatus == 'pending' ? Colors.orange : Colors.red);
++                  final bgStatusColor = isCredit ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1);
+                   
+                   return GestureDetector(
+                     onTap: () => _openReceipt(t),
+                     child: Container(
+                       margin: const EdgeInsets.only(bottom: 12),
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade100)),
+                       child: Row(
+                         children: [
+                           CircleAvatar(
+-                            backgroundColor: isCredit ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
++                            backgroundColor: bgStatusColor,
+                             child: Icon(isCredit ? Icons.arrow_downward : Icons.arrow_upward, color: isCredit ? Colors.green : Colors.redAccent, size: 20),
+                           ),
+                           const SizedBox(width: 16),
+                           Expanded(
+                             child: Column(
+                               crossAxisAlignment: CrossAxisAlignment.start,
+                               children: [
+                                 Text(t['category'].toString().toUpperCase().replaceAll('_', ' '), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                 const SizedBox(height: 4),
+                                 Text(t['created_at'], style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                               ],
+                             ),
+                           ),
+                           Column(
+                             crossAxisAlignment: CrossAxisAlignment.end,
+                             children: [
+                               Text('${isCredit ? '+' : '-'}₦$amountStr', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isCredit ? Colors.green : Colors.black87)),
+                               const SizedBox(height: 4),
+-                              Text(t['status'].toString().toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: t['status'] == 'success' ? Colors.green : (t['status'] == 'pending' ? Colors.orange : Colors.red))),
++                              Text(t['status'].toString().toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor)),
+                             ],
+                           )
+                         ],
