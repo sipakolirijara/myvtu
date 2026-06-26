@@ -15,6 +15,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
   String _selectedNetwork = '';
   final _phoneController = TextEditingController();
   final _amountController = TextEditingController();
+  final _pinController = TextEditingController();
   bool _isPurchasing = false;
   String _balance = '...';
 
@@ -47,10 +48,14 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 24, right: 24, top: 24,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,19 +65,42 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
               _buildConfirmRow('Network', _selectedNetwork),
               _buildConfirmRow('Phone Number', _phoneController.text),
               _buildConfirmRow('Amount', '₦${_amountController.text}', isAmount: true),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+              const Text('Enter Transaction PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _pinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  hintText: '****',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
-                    _buyAirtime();
+                    if (_pinController.text.length == 4) {
+                      Navigator.pop(context);
+                      _buyAirtime();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 4-digit PIN')));
+                    }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50), 
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                  ),
                   child: const Text('Confirm & Pay', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-              )
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         );
@@ -105,6 +133,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
           'network': _selectedNetwork,
           'amount': _amountController.text.trim(),
           'phone': _phoneController.text.trim(),
+          'pin': _pinController.text.trim(),
         },
       );
       
@@ -115,6 +144,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
       _navigateToStatus(false, 'Network connection timed out. Please check your internet and try again.');
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
+      _pinController.clear();
     }
   }
 

@@ -5,6 +5,8 @@ import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data_purchase_screen.dart';
 import 'airtime_purchase_screen.dart';
+import 'wallet_screen.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -15,8 +17,72 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget body;
+    switch (_selectedIndex) {
+      case 0:
+        body = const _HomeTab();
+        break;
+      case 1:
+        body = const _HomeTab(); // You can create a full ServicesGrid tab later
+        break;
+      case 2:
+        body = const WalletScreen();
+        break;
+      case 3:
+        body = const ProfileScreen();
+        break;
+      default:
+        body = const _HomeTab();
+    }
+
+    return Scaffold(
+      body: body,
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5))]),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: (index) => setState(() => _selectedIndex = index),
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: const Color(0xFF7351FF),
+            unselectedItemColor: Colors.grey,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+              BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Services'),
+              BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'Wallet'),
+              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// THE ORIGINAL DASHBOARD BODY (Refactored)
+// ==========================================
+class _HomeTab extends StatefulWidget {
+  const _HomeTab({Key? key}) : super(key: key);
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
   bool _isBalanceHidden = false;
-  
   String _firstName = 'User';
   String _balance = '0.00';
   String _bankName = 'Loading...';
@@ -33,63 +99,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-
       final response = await http.post(
         Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'),
         body: {'token': token},
-      ).timeout(const Duration(seconds: 15));
-
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true) {
-          if (mounted) {
-            setState(() {
-              _firstName = data['first_name'];
-              _balance = data['balance'];
-              _bankName = data['bank_name'];
-              _accountNumber = data['account_number'];
-              _isLoading = false;
-            });
-          }
+        if (data['success'] == true && mounted) {
+          setState(() {
+            _firstName = data['first_name'];
+            _balance = data['balance'];
+            _bankName = data['bank_name'];
+            _accountNumber = data['account_number'];
+            _isLoading = false;
+          });
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _fetchDashboardData,
-          color: const Color(0xFF7351FF),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 20),
-                  _buildHeader(),
-                  const SizedBox(height: 30),
-                  _buildWalletCard(),
-                  const SizedBox(height: 25),
-                  _buildQuickActions(),
-                  const SizedBox(height: 30),
-                  const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
-                  const SizedBox(height: 15),
-                  _buildServicesGrid(context),
-                  const SizedBox(height: 30),
-                ],
-              ),
-            ),
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: _fetchDashboardData,
+        color: const Color(0xFF7351FF),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              _buildHeader(),
+              const SizedBox(height: 30),
+              _buildWalletCard(),
+              const SizedBox(height: 25),
+              _buildQuickActions(),
+              const SizedBox(height: 30),
+              const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              const SizedBox(height: 15),
+              _buildServicesGrid(context),
+              const SizedBox(height: 30),
+            ],
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -148,9 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(
-                child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis),
-              ),
+              Expanded(child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis)),
               const Icon(Icons.copy, color: Colors.white70, size: 16),
             ],
           )
@@ -212,32 +267,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 6),
           Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5))]),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            onTap: (index) => setState(() => _selectedIndex = index),
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFF7351FF),
-            unselectedItemColor: Colors.grey,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Services'),
-              BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'Wallet'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
-            ],
-          ),
-        ),
       ),
     );
   }
