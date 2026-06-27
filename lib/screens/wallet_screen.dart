@@ -92,7 +92,7 @@ class _WalletScreenState extends State<WalletScreen> {
     final amountFormatted = double.tryParse(t['amount'].toString())?.toStringAsFixed(2) ?? '0.00';
     
     final txData = {
-      'Service': t['category'].toString().toUpperCase().replaceAll('_', ' '),
+      'Service': t['category'].toString().toLowerCase() == 'vtu_purchase' ? 'SERVICE PAYMENT' : t['category'].toString().toUpperCase().replaceAll('_', ' '),
       'Reference': t['reference'] ?? 'N/A',
       'Target/Phone': t['recipient_target'] ?? 'N/A',
       'Amount': '₦$amountFormatted',
@@ -242,7 +242,7 @@ class _WalletScreenState extends State<WalletScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(t['category'].toString().toUpperCase().replaceAll('_', ' '), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                      Text(t['category'].toString().toLowerCase() == 'vtu_purchase' ? 'SERVICE PAYMENT' : t['category'].toString().toUpperCase().replaceAll('_', ' '), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                       const SizedBox(height: 4),
                                       Text(t['created_at'], style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
                                     ],

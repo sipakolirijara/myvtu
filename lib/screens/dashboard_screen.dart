@@ -19,28 +19,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final List<Widget> _screens = [
     const DashboardHomeView(),
+    const ServicesPlaceholderView(), // Restored Services Tab
     const WalletScreen(),
     const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Colors.grey,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Services'),
           BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
+    );
+  }
+}
+
+class ServicesPlaceholderView extends StatelessWidget {
+  const ServicesPlaceholderView({Key? key}) : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('All Services', style: TextStyle(fontWeight: FontWeight.bold))),
+      body: const Center(child: Text('Service categories will be configured here soon.', style: TextStyle(color: Colors.grey))),
     );
   }
 }
@@ -71,10 +85,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-      final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'),
-        body: {'token': token},
-      );
+      final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && mounted) {
@@ -96,17 +107,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-      final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_profile.php'),
-        body: {'token': token},
-      );
+      final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_profile.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        // If profile loads successfully but user has no PIN
         if (data['success'] == true && data['has_pin'] == false && mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showMandatoryPinSetup();
-          });
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showMandatoryPinSetup());
         }
       }
     } catch (_) {}
@@ -117,101 +122,74 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final confirmPinController = TextEditingController();
     bool isSaving = false;
     final primaryColor = Theme.of(context).primaryColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showDialog(
       context: context,
-      barrierDismissible: false, // Prevents closing by tapping outside
+      barrierDismissible: false,
       builder: (context) => WillPopScope(
-        onWillPop: () async => false, // Disables the Android back button
+        onWillPop: () async => false,
         child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               title: const Row(
                 children: [
-                  Icon(Icons.security, color: Colors.redAccent),
+                  Icon(Icons.lock, color: Colors.orange),
                   SizedBox(width: 8),
-                  Text('Security Lock', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Set Payment PIN', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('For your protection, you must create a 4-digit PIN before you can use the application.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Please set up your 4-digit Payment PIN to authorize transactions, fund your wallet, and purchase services.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 20),
-                  const Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
                   TextField(
-                    controller: newPinController, 
-                    obscureText: true, 
-                    keyboardType: TextInputType.number, 
-                    maxLength: 4, 
-                    textAlign: TextAlign.center, 
-                    style: const TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
+                    controller: newPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, 
+                    style: TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                    decoration: InputDecoration(filled: true, fillColor: isDark ? Colors.grey.shade900 : Colors.grey.shade100, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
                   ),
                   const SizedBox(height: 12),
-                  const Text('Confirm PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text('Confirm PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
                   TextField(
-                    controller: confirmPinController, 
-                    obscureText: true, 
-                    keyboardType: TextInputType.number, 
-                    maxLength: 4, 
-                    textAlign: TextAlign.center, 
-                    style: const TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
+                    controller: confirmPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, 
+                    style: TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                    decoration: InputDecoration(filled: true, fillColor: isDark ? Colors.grey.shade900 : Colors.grey.shade100, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
                   ),
                 ],
               ),
               actions: [
                 SizedBox(
-                  width: double.infinity,
-                  height: 50,
+                  width: double.infinity, height: 50,
                   child: ElevatedButton(
                     onPressed: isSaving ? null : () async {
-                      if (newPinController.text.length != 4) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN must be exactly 4 digits.')));
+                      if (newPinController.text.length != 4 || newPinController.text != confirmPinController.text) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PINs must be 4 digits and match perfectly.')));
                         return;
                       }
-                      if (newPinController.text != confirmPinController.text) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PINs do not match. Please try again.')));
-                        return;
-                      }
-
                       setDialogState(() => isSaving = true);
-                      
                       try {
                         final prefs = await SharedPreferences.getInstance();
                         final token = prefs.getString('api_token') ?? '';
-                        final response = await http.post(
-                          Uri.parse('https://vtu.kainuwa.africa/api/mobile/set_pin.php'),
-                          body: {'token': token, 'new_pin': newPinController.text, 'current_pin': ''},
-                        );
+                        final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/set_pin.php'), body: {'token': token, 'new_pin': newPinController.text, 'current_pin': ''});
                         final data = json.decode(response.body);
-                        
                         if (data['success']) {
-                          Navigator.pop(context); // Unlocks the app
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Security PIN successfully configured!'), backgroundColor: Colors.green));
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment PIN successfully configured!'), backgroundColor: Colors.green));
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.red));
                         }
                       } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error. Check your connection.')));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error.')));
                       } finally {
                         setDialogState(() => isSaving = false);
                       }
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: isSaving 
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                        : const Text('Secure My Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    child: isSaving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Save Payment PIN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
                 )
               ],
@@ -225,30 +203,22 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        automaticallyImplyLeading: false,
         title: Row(
           children: [
-            const Text('Kainuwa', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            Text('Kainuwa', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
             Text('Data', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
           ],
         ),
         actions: [
           GestureDetector(
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-            },
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
-              child: CircleAvatar(
-                backgroundColor: primaryColor.withOpacity(0.2),
-                child: Icon(Icons.person, color: primaryColor),
-              ),
+              child: CircleAvatar(backgroundColor: primaryColor.withOpacity(0.2), child: Icon(Icons.person, color: primaryColor)),
             ),
           )
         ],
@@ -264,7 +234,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
             children: [
               Text('Welcome back, $_firstName', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const SizedBox(height: 20),
-              
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -280,10 +249,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                        GestureDetector(
-                          onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden),
-                          child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20),
-                        ),
+                        GestureDetector(onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden), child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20)),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -302,9 +268,10 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               ),
               const SizedBox(height: 30),
               
-              const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
               const SizedBox(height: 16),
 
+              // Restored Full Grid
               GridView.count(
                 crossAxisCount: 3,
                 shrinkWrap: true,
@@ -312,15 +279,12 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
                 children: [
-                  _buildServiceTile(context, Icons.phone_android, 'Airtime', () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen()));
-                  }),
-                  _buildServiceTile(context, Icons.wifi, 'Data Plans', () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen()));
-                  }),
-                  _buildServiceTile(context, Icons.history, 'History', () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
-                  }),
+                  _buildServiceTile(context, Icons.phone_android, 'Airtime', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen()))),
+                  _buildServiceTile(context, Icons.wifi, 'Data Plans', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen()))),
+                  _buildServiceTile(context, Icons.tv, 'Cable TV', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cable TV module coming soon.')))),
+                  _buildServiceTile(context, Icons.bolt, 'Electricity', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Electricity module coming soon.')))),
+                  _buildServiceTile(context, Icons.school, 'Exam Pins', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exam Pins module coming soon.')))),
+                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()))),
                 ],
               )
             ],
@@ -331,16 +295,17 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   }
 
   Widget _buildServiceTile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade100)),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: Theme.of(context).primaryColor, size: 28),
             const SizedBox(height: 8),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
           ],
         ),
       ),
