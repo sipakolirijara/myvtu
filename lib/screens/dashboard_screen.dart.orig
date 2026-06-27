@@ -121,7 +121,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final newPinController = TextEditingController();
     final confirmPinController = TextEditingController();
     bool isSaving = false;
-    String? errorMessage;
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -145,20 +144,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (errorMessage != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.withOpacity(0.3))),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold))),
-                        ],
-                      ),
-                    ),
-                  ],
                   const Text('Please set up your 4-digit Payment PIN to authorize transactions, fund your wallet, and purchase services.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 20),
                   Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
@@ -195,10 +180,10 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment PIN successfully configured!'), backgroundColor: Colors.green));
                         } else {
-                          setDialogState(() => errorMessage = data['message']);
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.red));
                         }
                       } catch (e) {
-                        setDialogState(() => errorMessage = 'Network connection failed. Please try again.');
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error.')));
                       } finally {
                         setDialogState(() => isSaving = false);
                       }

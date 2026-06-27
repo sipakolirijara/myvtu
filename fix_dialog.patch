@@ -1,0 +1,56 @@
+--- lib/screens/dashboard_screen.dart
++++ lib/screens/dashboard_screen.dart
+@@ -107,6 +107,7 @@
+     final newPinController = TextEditingController();
+     final confirmPinController = TextEditingController();
+     bool isSaving = false;
++    String? errorMessage;
+     final primaryColor = Theme.of(context).primaryColor;
+     final isDark = Theme.of(context).brightness == Brightness.dark;
+ 
+@@ -129,6 +130,20 @@
+               content: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
++                  if (errorMessage != null) ...[
++                    Container(
++                      padding: const EdgeInsets.all(12),
++                      margin: const EdgeInsets.only(bottom: 16),
++                      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.withOpacity(0.3))),
++                      child: Row(
++                        children: [
++                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
++                          const SizedBox(width: 8),
++                          Expanded(child: Text(errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold))),
++                        ],
++                      ),
++                    ),
++                  ],
+                   const Text('Please set up your 4-digit Payment PIN to authorize transactions, fund your wallet, and purchase services.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                   const SizedBox(height: 20),
+                   Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+@@ -155,8 +170,12 @@
+                     onPressed: isSaving ? null : () async {
+                       if (newPinController.text.length != 4 || newPinController.text != confirmPinController.text) {
+-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PINs must be 4 digits and match perfectly.')));
++                        setDialogState(() => errorMessage = 'PINs must be exactly 4 digits and match perfectly.');
+                         return;
+                       }
++                      setDialogState(() {
++                        isSaving = true;
++                        errorMessage = null;
++                      });
+                       try {
+                         final prefs = await SharedPreferences.getInstance();
+                         final token = prefs.getString('api_token') ?? '';
+@@ -167,9 +186,9 @@
+                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment PIN successfully configured!'), backgroundColor: Colors.green));
+                         } else {
+-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.red));
++                          setDialogState(() => errorMessage = data['message']);
+                         }
+                       } catch (e) {
+-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error.')));
++                        setDialogState(() => errorMessage = 'Network connection failed. Please try again.');
+                       } finally {
+                         setDialogState(() => isSaving = false);

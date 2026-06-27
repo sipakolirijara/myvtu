@@ -279,19 +279,23 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     );
   }
 
+  Color _getNetworkColor(String network) { switch (network) { case 'MTN': return const Color(0xFFFFB300); case 'AIRTEL': return const Color(0xFFFF0000); case 'GLO': return const Color(0xFF009900); case '9MOBILE': return const Color(0xFF006600); default: return Colors.grey; } }
+
   Widget _buildNetworkSelector(Color primaryColor) {
     final networks = ['MTN', 'AIRTEL', 'GLO', '9MOBILE'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: networks.map((network) {
         final isSelected = _selectedNetwork == network;
+        final netColor = _getNetworkColor(network);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return GestureDetector(
           onTap: () => _onNetworkSelected(network),
           child: Container(
             width: 75,
             padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(color: isSelected ? primaryColor.withOpacity(0.1) : Colors.white, border: Border.all(color: isSelected ? primaryColor : Colors.grey.shade300, width: isSelected ? 2 : 1), borderRadius: BorderRadius.circular(12)),
-            child: Center(child: Text(network, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? primaryColor : Colors.grey.shade600))),
+            decoration: BoxDecoration(color: isSelected ? netColor : (isDark ? const Color(0xFF1E1E1E) : Colors.white), border: Border.all(color: isSelected ? netColor : (isDark ? Colors.grey.shade800 : Colors.grey.shade300), width: isSelected ? 2 : 1), borderRadius: BorderRadius.circular(12)),
+            child: Center(child: Text(network, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.grey.shade500))),
           ),
         );
       }).toList(),
