@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:ui';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'data_purchase_screen.dart';
-import 'airtime_purchase_screen.dart';
 import 'wallet_screen.dart';
 import 'profile_screen.dart';
+import 'data_purchase_screen.dart';
+import 'airtime_purchase_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -16,72 +15,44 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0;
+  int _currentIndex = 0;
+
+  final List<Widget> _screens = [
+    const DashboardHomeView(),
+    const WalletScreen(),
+    const ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    Widget body;
-    switch (_selectedIndex) {
-      case 0:
-        body = const _HomeTab();
-        break;
-      case 1:
-        body = const _HomeTab(); // You can create a full ServicesGrid tab later
-        break;
-      case 2:
-        body = const WalletScreen();
-        break;
-      case 3:
-        body = const ProfileScreen();
-        break;
-      default:
-        body = const _HomeTab();
-    }
-
     return Scaffold(
-      body: body,
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5))]),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            onTap: (index) => setState(() => _selectedIndex = index),
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFF7351FF),
-            unselectedItemColor: Colors.grey,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Services'),
-              BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'Wallet'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
-            ],
-          ),
-        ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'History'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
     );
   }
 }
 
-// ==========================================
-// THE ORIGINAL DASHBOARD BODY (Refactored)
-// ==========================================
-class _HomeTab extends StatefulWidget {
-  const _HomeTab({Key? key}) : super(key: key);
+class DashboardHomeView extends StatefulWidget {
+  const DashboardHomeView({Key? key}) : super(key: key);
 
   @override
-  State<_HomeTab> createState() => _HomeTabState();
+  State<DashboardHomeView> createState() => _DashboardHomeViewState();
 }
 
-class _HomeTabState extends State<_HomeTab> {
+class _DashboardHomeViewState extends State<DashboardHomeView> {
   bool _isBalanceHidden = false;
   String _firstName = 'User';
   String _balance = '0.00';
@@ -122,151 +93,128 @@ class _HomeTabState extends State<_HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: _fetchDashboardData,
-        color: const Color(0xFF7351FF),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              _buildHeader(),
-              const SizedBox(height: 30),
-              _buildWalletCard(),
-              const SizedBox(height: 25),
-              _buildQuickActions(),
-              const SizedBox(height: 30),
-              const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
-              const SizedBox(height: 15),
-              _buildServicesGrid(context),
-              const SizedBox(height: 30),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    final primaryColor = Theme.of(context).primaryColor;
 
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F9),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false,
+        title: Row(
           children: [
-            const CircleAvatar(radius: 24, backgroundColor: Color(0xFFE0E7FF), child: Icon(Icons.person, color: Color(0xFF7351FF))),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Good Morning,', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                Text(_firstName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-              ],
-            ),
+            const Text('Kainuwa', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            Text('Data', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
           ],
         ),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-          child: const Icon(Icons.notifications_none, color: Colors.black87),
-        )
-      ],
-    );
-  }
-
-  Widget _buildWalletCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF7351FF), Color(0xFF5A3BD8)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: const Color(0xFF7351FF).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
-              GestureDetector(
-                onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden),
-                child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20),
+        actions: [
+          GestureDetector(
+            onTap: () {
+              // Direct navigation to Profile Screen via top avatar
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: CircleAvatar(
+                backgroundColor: primaryColor.withOpacity(0.2),
+                child: Icon(Icons.person, color: primaryColor),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _isLoading 
-            ? const SizedBox(height: 38, width: 38, child: CircularProgressIndicator(color: Colors.white))
-            : Text(_isBalanceHidden ? '₦ •••••' : '₦ $_balance', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis)),
-              const Icon(Icons.copy, color: Colors.white70, size: 16),
-            ],
+            ),
           )
         ],
       ),
-    );
-  }
+      body: RefreshIndicator(
+        onRefresh: _fetchDashboardData,
+        color: primaryColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Welcome back, $_firstName', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+              const SizedBox(height: 20),
+              
+              // Wallet Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primaryColor, primaryColor.withOpacity(0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        GestureDetector(
+                          onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden),
+                          child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _isLoading 
+                      ? const SizedBox(height: 38, width: 38, child: CircularProgressIndicator(color: Colors.white))
+                      : Text(_isBalanceHidden ? '₦ •••••' : '₦ $_balance', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis)),
+                        const Icon(Icons.copy, color: Colors.white70, size: 16),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              
+              const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              const SizedBox(height: 16),
 
-  Widget _buildQuickActions() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildActionIcon(Icons.add_circle_outline, 'Fund', const Color(0xFF7351FF)),
-        _buildActionIcon(Icons.swap_horiz, 'Transfer', const Color(0xFF00C48C)),
-        _buildActionIcon(Icons.history, 'History', const Color(0xFFFF9800)),
-      ],
-    );
-  }
-
-  Widget _buildActionIcon(IconData icon, String label, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]),
-          child: Icon(icon, color: color, size: 28),
+              // Active Mapped Grid
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                children: [
+                  _buildServiceTile(context, Icons.phone_android, 'Airtime', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen()));
+                  }),
+                  _buildServiceTile(context, Icons.wifi, 'Data Plans', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen()));
+                  }),
+                  _buildServiceTile(context, Icons.history, 'History', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+                  }),
+                ],
+              )
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-      ],
+      ),
     );
   }
 
-  Widget _buildServicesGrid(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 15,
-      mainAxisSpacing: 20,
-      children: [
-        _buildServiceItem(Icons.wifi, 'Data', const Color(0xFFE0E7FF), const Color(0xFF7351FF), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen()))),
-        _buildServiceItem(Icons.phone_android, 'Airtime', const Color(0xFFE8F5E9), const Color(0xFF4CAF50), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen()))),
-        _buildServiceItem(Icons.tv, 'Cable TV', const Color(0xFFFFF3E0), const Color(0xFFFF9800)),
-        _buildServiceItem(Icons.bolt, 'Electricity', const Color(0xFFFFEBEE), const Color(0xFFF44336)),
-        _buildServiceItem(Icons.school, 'Exam Pins', const Color(0xFFF3E5F5), const Color(0xFF9C27B0)),
-        _buildServiceItem(Icons.receipt_long, 'Receipts', const Color(0xFFE0F7FA), const Color(0xFF00BCD4)),
-      ],
-    );
-  }
-
-  Widget _buildServiceItem(IconData icon, String label, Color bgColor, Color iconColor, {VoidCallback? onTap}) {
+  Widget _buildServiceTile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: iconColor, size: 24)),
-          const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ],
+      child: Container(
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade100)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Theme.of(context).primaryColor, size: 28),
+            const SizedBox(height: 8),
+            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }

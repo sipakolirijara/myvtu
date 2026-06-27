@@ -14,7 +14,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
-  bool _isDarkMode = false;
+  bool _isDarkMode = false; // Dark Mode State
 
   @override
   void initState() {
@@ -106,25 +106,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final primaryColor = Theme.of(context).primaryColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
-      appBar: AppBar(title: const Text('My Profile', style: TextStyle(color: Color(0xFF1E1E1E), fontWeight: FontWeight.bold, fontSize: 20)), automaticallyImplyLeading: false, backgroundColor: Colors.transparent, elevation: 0),
+      backgroundColor: _isDarkMode ? const Color(0xFF121212) : const Color(0xFFF4F6F9),
+      appBar: AppBar(
+        title: Text('My Profile', style: TextStyle(color: _isDarkMode ? Colors.white : const Color(0xFF1E1E1E), fontWeight: FontWeight.bold, fontSize: 20)), 
+        automaticallyImplyLeading: false, 
+        backgroundColor: Colors.transparent, 
+        elevation: 0
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             CircleAvatar(radius: 40, backgroundColor: primaryColor, child: const Icon(Icons.person, size: 40, color: Colors.white)),
             const SizedBox(height: 16),
-            Text('${_profile!['first_name']} ${_profile!['last_name']}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text('${_profile!['first_name']} ${_profile!['last_name']}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _isDarkMode ? Colors.white : Colors.black87)),
             Text('${_profile!['email']}', style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 8),
             Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Text('${_profile!['role']}', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12))),
             const SizedBox(height: 40),
             
+            // Dark Mode Toggle
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(color: _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: _isDarkMode ? Colors.transparent : Colors.grey.shade100)),
+              child: SwitchListTile(
+                title: Text('Dark Mode Display', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _isDarkMode ? Colors.white : Colors.black87)),
+                secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.dark_mode, color: primaryColor)),
+                value: _isDarkMode,
+                activeColor: primaryColor,
+                onChanged: (bool value) => setState(() => _isDarkMode = value),
+              ),
+            ),
+
             _buildProfileMenu(Icons.phone, 'Phone Number', _profile!['phone'], null, primaryColor),
-            
-            // THE FIX: Properly formatted lambda function for the onTap handler
             _buildProfileMenu(Icons.lock, _profile!['has_pin'] ? 'Change Transaction PIN' : 'Set Transaction PIN', _profile!['has_pin'] ? '****' : 'Not Set', () => _showSetPinDialog(_profile!['has_pin']), primaryColor),
-            
             _buildProfileMenu(Icons.logout, 'Log Out', '', _logout, primaryColor, isDestructive: true),
           ],
         ),
@@ -135,11 +150,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileMenu(IconData icon, String title, String subtitle, VoidCallback? onTap, Color primaryColor, {bool isDestructive = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade100)),
+      decoration: BoxDecoration(color: _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: _isDarkMode ? Colors.transparent : Colors.grey.shade100)),
       child: ListTile(
         onTap: onTap,
         leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: isDestructive ? Colors.red.withOpacity(0.1) : primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: isDestructive ? Colors.red : primaryColor)),
-        title: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: isDestructive ? Colors.red : Colors.black87)),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: isDestructive ? Colors.red : (_isDarkMode ? Colors.white : Colors.black87))),
         subtitle: subtitle.isNotEmpty ? Text(subtitle, style: const TextStyle(color: Colors.grey)) : null,
         trailing: onTap != null ? const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey) : null,
       ),
