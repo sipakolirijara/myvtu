@@ -14,7 +14,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
-  bool _isDarkMode = false;
 
   @override
   void initState() {
