@@ -64,6 +64,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   void initState() {
     super.initState();
     _fetchDashboardData();
+    _enforceSecurityPin();
   }
 
   Future<void> _fetchDashboardData() async {
@@ -91,6 +92,136 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
   }
 
+  Future<void> _enforceSecurityPin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('api_token') ?? '';
+      final response = await http.post(
+        Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_profile.php'),
+        body: {'token': token},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // If profile loads successfully but user has no PIN
+        if (data['success'] == true && data['has_pin'] == false && mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showMandatoryPinSetup();
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _showMandatoryPinSetup() {
+    final newPinController = TextEditingController();
+    final confirmPinController = TextEditingController();
+    bool isSaving = false;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevents closing by tapping outside
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false, // Disables the Android back button
+        child: StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Row(
+                children: [
+                  Icon(Icons.security, color: Colors.redAccent),
+                  SizedBox(width: 8),
+                  Text('Security Lock', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('For your protection, you must create a 4-digit PIN before you can use the application.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 20),
+                  const Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  TextField(
+                    controller: newPinController, 
+                    obscureText: true, 
+                    keyboardType: TextInputType.number, 
+                    maxLength: 4, 
+                    textAlign: TextAlign.center, 
+                    style: const TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Confirm PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  TextField(
+                    controller: confirmPinController, 
+                    obscureText: true, 
+                    keyboardType: TextInputType.number, 
+                    maxLength: 4, 
+                    textAlign: TextAlign.center, 
+                    style: const TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isSaving ? null : () async {
+                      if (newPinController.text.length != 4) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN must be exactly 4 digits.')));
+                        return;
+                      }
+                      if (newPinController.text != confirmPinController.text) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PINs do not match. Please try again.')));
+                        return;
+                      }
+
+                      setDialogState(() => isSaving = true);
+                      
+                      try {
+                        final prefs = await SharedPreferences.getInstance();
+                        final token = prefs.getString('api_token') ?? '';
+                        final response = await http.post(
+                          Uri.parse('https://vtu.kainuwa.africa/api/mobile/set_pin.php'),
+                          body: {'token': token, 'new_pin': newPinController.text, 'current_pin': ''},
+                        );
+                        final data = json.decode(response.body);
+                        
+                        if (data['success']) {
+                          Navigator.pop(context); // Unlocks the app
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Security PIN successfully configured!'), backgroundColor: Colors.green));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.red));
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error. Check your connection.')));
+                      } finally {
+                        setDialogState(() => isSaving = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: isSaving 
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                        : const Text('Secure My Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                )
+              ],
+            );
+          }
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
@@ -110,7 +241,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         actions: [
           GestureDetector(
             onTap: () {
-              // Direct navigation to Profile Screen via top avatar
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
             },
             child: Padding(
@@ -135,7 +265,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               Text('Welcome back, $_firstName', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const SizedBox(height: 20),
               
-              // Wallet Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -176,7 +305,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
               const SizedBox(height: 16),
 
-              // Active Mapped Grid
               GridView.count(
                 crossAxisCount: 3,
                 shrinkWrap: true,
