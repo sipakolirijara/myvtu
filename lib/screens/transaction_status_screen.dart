@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TransactionStatusScreen extends StatefulWidget {
   final bool isSuccess;
@@ -27,6 +28,22 @@ class TransactionStatusScreen extends StatefulWidget {
 class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
   final GlobalKey _receiptKey = GlobalKey();
   bool _isSharing = false;
+  String _appName = 'Transaction Receipt';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppName();
+  }
+
+  Future<void> _loadAppName() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _appName = (prefs.getString('app_name') ?? 'VTU System').toUpperCase();
+      });
+    }
+  }
 
   Future<void> _shareReceipt() async {
     setState(() => _isSharing = true);
@@ -38,15 +55,20 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
       
       if (byteData != null) {
         final directory = await getApplicationDocumentsDirectory();
-        final imagePath = await File('${directory.path}/kainuwa_receipt.png').create();
+        final imagePath = await File('${directory.path}/receipt.png').create();
         await imagePath.writeAsBytes(byteData.buffer.asUint8List());
-        await Share.shareXFiles([XFile(imagePath.path)], text: 'Transaction Receipt from Kainuwa Data');
+        await Share.shareXFiles([XFile(imagePath.path)], text: 'Transaction Receipt from $_appName');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to generate receipt image.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to generate receipt.')));
     } finally {
       if (mounted) setState(() => _isSharing = false);
     }
+  }
+
+  void _closeScreen() {
+    Navigator.of(context).pop(); // Forcefully close the screen
+    widget.onDone(); // Trigger any background updates
   }
 
   @override
@@ -55,7 +77,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
     
     return WillPopScope(
       onWillPop: () async {
-        widget.onDone();
+        _closeScreen();
         return false;
       },
       child: Scaffold(
@@ -65,7 +87,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
           elevation: 0,
           backgroundColor: Colors.transparent,
           actions: [
-            IconButton(icon: const Icon(Icons.close, color: Colors.black87), onPressed: widget.onDone)
+            IconButton(icon: const Icon(Icons.close, color: Colors.black87), onPressed: _closeScreen)
           ],
         ),
         body: SafeArea(
@@ -81,7 +103,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text('KAINUWA DATA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: primaryColor, letterSpacing: 2)),
+                        Text(_appName, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: primaryColor, letterSpacing: 2)),
                         const SizedBox(height: 24),
                         Container(
                           padding: const EdgeInsets.all(16),
@@ -122,7 +144,7 @@ class _TransactionStatusScreenState extends State<TransactionStatusScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: widget.onDone,
+                        onPressed: _closeScreen,
                         style: ElevatedButton.styleFrom(backgroundColor: primaryColor, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
                         child: const Text('Done', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
