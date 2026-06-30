@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 
-// GLOBAL THEME CONTROLLER
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
 void main() async {
@@ -26,7 +26,7 @@ Future<void> _fetchAndCacheSettings() async {
       final data = json.decode(response.body);
       if (data['success'] == true) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('app_name', data['settings']['website_name'] ?? 'Kainuwa Data');
+        await prefs.setString('app_name', data['settings']['website_name'] ?? 'VTU App');
         await prefs.setString('primary_color', data['settings']['primary_color'] ?? '#7351FF');
       }
     }
@@ -77,12 +77,14 @@ class _MyAppState extends State<MyApp> {
           themeMode: currentMode,
           theme: ThemeData(
             primaryColor: _primaryColor,
+            textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
             colorScheme: ColorScheme.fromSeed(seedColor: _primaryColor, brightness: Brightness.light),
             scaffoldBackgroundColor: const Color(0xFFF4F6F9),
             appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
           ),
           darkTheme: ThemeData(
             primaryColor: _primaryColor,
+            textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
             colorScheme: ColorScheme.fromSeed(seedColor: _primaryColor, brightness: Brightness.dark),
             scaffoldBackgroundColor: const Color(0xFF121212),
             appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, iconTheme: IconThemeData(color: Colors.white)),

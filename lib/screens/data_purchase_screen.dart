@@ -65,7 +65,6 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       _selectedNetwork = network;
       _selectedCategory = null;
       _selectedPlanId = null;
-      // Filter dynamically based on the exact network chosen
       _availableCategories = _allPlans
           .where((plan) => plan['network'].toString().toUpperCase() == network.toUpperCase())
           .map((plan) => plan['category'].toString())
@@ -74,24 +73,57 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     });
   }
 
-  void _onCategorySelected(String? category) {
-    setState(() {
-      _selectedCategory = category;
-      _selectedPlanId = null;
-      _filteredPlans = _allPlans
-          .where((plan) => plan['network'].toString().toUpperCase() == _selectedNetwork.toUpperCase() && plan['category'].toString() == category)
-          .toList();
-    });
-  }
-
   Color _getNetworkColor(String network) {
     switch (network.toUpperCase()) {
-      case 'MTN': return const Color(0xFFFFB300); // Orange/Yellow
-      case 'AIRTEL': return const Color(0xFFFF0000); // Red
-      case 'GLO': return const Color(0xFF009900); // Green
-      case '9MOBILE': return const Color(0xFF006600); // Dark Green
+      case 'MTN': return const Color(0xFFFFB300);
+      case 'AIRTEL': return const Color(0xFFFF0000);
+      case 'GLO': return const Color(0xFF009900);
+      case '9MOBILE': return const Color(0xFF006600);
       default: return Colors.grey;
     }
+  }
+
+  void _showSelectorModal({required String title, required List<dynamic> items, required Function(dynamic) onSelect, bool isPlan = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (context, index) => Divider(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return ListTile(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onSelect(item);
+                      },
+                      title: Text(isPlan ? item['plan_name'] : item.toString(), style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                      subtitle: isPlan ? Text('Validity: ${item['validity'] ?? '30 Days'}', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)) : null,
+                      trailing: isPlan ? Text('₦${item['retail_price']}', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 15)) : const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    );
   }
 
   void _showConfirmationModal() {
@@ -121,6 +153,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
               _buildConfirmRow('Network', _selectedNetwork, primaryColor, isDark),
               _buildConfirmRow('Phone Number', _phoneController.text, primaryColor, isDark),
               _buildConfirmRow('Data Plan', selectedPlan['plan_name'], primaryColor, isDark),
+              _buildConfirmRow('Validity', selectedPlan['validity'] ?? '30 Days', primaryColor, isDark),
               _buildConfirmRow('Amount', '₦${selectedPlan['retail_price']}', primaryColor, isDark, isAmount: true),
               const SizedBox(height: 20),
               Text('Enter Transaction PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
@@ -195,18 +228,11 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       final token = prefs.getString('api_token') ?? '';
       final response = await http.post(
         Uri.parse('https://vtu.kainuwa.africa/api/mobile/buy_data.php'),
-        body: {
-          'token': token,
-          'network': _selectedNetwork,
-          'plan_id': _selectedPlanId.toString(),
-          'phone': _phoneController.text.trim(),
-          'pin': _pinController.text.trim(),
-        },
+        body: {'token': token, 'network': _selectedNetwork, 'plan_id': _selectedPlanId.toString(), 'phone': _phoneController.text.trim(), 'pin': _pinController.text.trim()},
       );
       
       final data = json.decode(response.body);
       
-      // UX FIX: Only show receipt if successful. Show SnackBar if wrong PIN/Failed.
       if (data['success'] == true) {
         txData['Status'] = 'Successful';
         _navigateToStatus(true, data['message'] ?? 'Transaction processed.', txData);
@@ -226,16 +252,9 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => TransactionStatusScreen(
-          isSuccess: isSuccess,
-          message: message,
-          transactionData: txData,
+          isSuccess: isSuccess, message: message, transactionData: txData,
           onDone: () {
-            if (isSuccess) {
-              setState(() {
-                _phoneController.clear();
-                _selectedPlanId = null;
-              });
-            }
+            if (isSuccess) setState(() { _phoneController.clear(); _selectedPlanId = null; });
             _fetchBalance();
           },
         ),
@@ -247,6 +266,8 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final selectedPlan = _selectedPlanId != null ? _allPlans.firstWhere((p) => p['id'].toString() == _selectedPlanId) : null;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF4F6F9),
@@ -283,11 +304,48 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
             const SizedBox(height: 24),
             Text('3. Data Category', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _buildCategoryDropdown(isDark),
+            _buildModernSelector(
+              label: _selectedCategory ?? 'Tap to select category',
+              isDark: isDark,
+              onTap: () {
+                if (_selectedNetwork.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a network first')));
+                  return;
+                }
+                _showSelectorModal(
+                  title: 'Select Category',
+                  items: _availableCategories,
+                  onSelect: (cat) {
+                    setState(() {
+                      _selectedCategory = cat;
+                      _selectedPlanId = null;
+                      _filteredPlans = _allPlans.where((plan) => plan['network'].toString().toUpperCase() == _selectedNetwork.toUpperCase() && plan['category'].toString() == cat).toList();
+                    });
+                  }
+                );
+              }
+            ),
             const SizedBox(height: 24),
             Text('4. Data Plan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _isLoadingPlans ? Center(child: CircularProgressIndicator(color: primaryColor)) : _buildPlanDropdown(isDark),
+            _isLoadingPlans 
+              ? Center(child: CircularProgressIndicator(color: primaryColor)) 
+              : _buildModernSelector(
+                  label: selectedPlan != null ? '${selectedPlan['plan_name']} - ₦${selectedPlan['retail_price']}' : 'Tap to select a data bundle',
+                  isDark: isDark,
+                  onTap: () {
+                    if (_selectedCategory == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a category first')));
+                      return;
+                    }
+                    _showSelectorModal(
+                      title: 'Select Data Plan',
+                      items: _filteredPlans,
+                      isPlan: true,
+                      onSelect: (plan) => setState(() => _selectedPlanId = plan['id'].toString())
+                    );
+                  }
+                ),
             const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
@@ -340,37 +398,19 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     );
   }
 
-  Widget _buildCategoryDropdown(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          hint: Text(_selectedNetwork.isEmpty ? 'Select a network first' : 'Select Category', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
-          value: _selectedCategory,
-          // FIX: Explicitly set text color so it doesn't vanish in light/dark mode
-          items: _availableCategories.map((String cat) => DropdownMenuItem<String>(value: cat, child: Text(cat, style: TextStyle(color: isDark ? Colors.white : Colors.black87)))).toList(),
-          onChanged: _selectedNetwork.isEmpty ? null : _onCategorySelected,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlanDropdown(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          hint: Text(_selectedCategory == null ? 'Select a category first' : 'Choose a bundle', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
-          value: _selectedPlanId,
-          // FIX: Explicitly set text color here too
-          items: _filteredPlans.map<DropdownMenuItem<String>>((dynamic plan) => DropdownMenuItem<String>(value: plan['id'].toString(), child: Text('${plan['plan_name']} - ₦${plan['retail_price']}', style: TextStyle(color: isDark ? Colors.white : Colors.black87)))).toList(),
-          onChanged: _selectedCategory == null ? null : (String? newValue) => setState(() => _selectedPlanId = newValue),
+  Widget _buildModernSelector({required String label, required bool isDark, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: Text(label, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 15, fontWeight: FontWeight.w500))),
+            Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade500),
+          ],
         ),
       ),
     );

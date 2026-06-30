@@ -19,7 +19,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final List<Widget> _screens = [
     const DashboardHomeView(),
-    const ServicesPlaceholderView(), // Restored Services Tab
+    const ServicesPlaceholderView(),
     const WalletScreen(),
     const ProfileScreen(),
   ];
@@ -72,6 +72,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   String _balance = '0.00';
   String _bankName = 'Loading...';
   String _accountNumber = 'Loading...';
+  String _appName = 'VTU App';
   bool _isLoading = true;
 
   @override
@@ -85,6 +86,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
+      
+      setState(() {
+        _appName = prefs.getString('app_name') ?? 'VTU App';
+      });
+
       final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -159,7 +165,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                       ),
                     ),
                   ],
-                  const Text('Please set up your 4-digit Payment PIN to authorize transactions, fund your wallet, and purchase services.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Please set up your 4-digit Payment PIN to authorize transactions.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 20),
                   Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
                   TextField(
@@ -182,10 +188,13 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   child: ElevatedButton(
                     onPressed: isSaving ? null : () async {
                       if (newPinController.text.length != 4 || newPinController.text != confirmPinController.text) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PINs must be 4 digits and match perfectly.')));
+                        setDialogState(() => errorMessage = 'PINs must be exactly 4 digits and match.');
                         return;
                       }
-                      setDialogState(() => isSaving = true);
+                      setDialogState(() {
+                        isSaving = true;
+                        errorMessage = null;
+                      });
                       try {
                         final prefs = await SharedPreferences.getInstance();
                         final token = prefs.getString('api_token') ?? '';
@@ -198,7 +207,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           setDialogState(() => errorMessage = data['message']);
                         }
                       } catch (e) {
-                        setDialogState(() => errorMessage = 'Network connection failed. Please try again.');
+                        setDialogState(() => errorMessage = 'Network error.');
                       } finally {
                         setDialogState(() => isSaving = false);
                       }
@@ -220,12 +229,18 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Splitting dynamic name cleanly
+    List<String> nameParts = _appName.split(' ');
+    String firstWord = nameParts.isNotEmpty ? nameParts[0] : 'App';
+    String secondWord = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
-            Text('Kainuwa', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
-            Text('Data', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+            Text(firstWord, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 4),
+            Text(secondWord, style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
           ],
         ),
         actions: [
@@ -249,6 +264,8 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
             children: [
               Text('Welcome back, $_firstName', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const SizedBox(height: 20),
+              
+              // ATM Card Layout
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -257,26 +274,43 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Stack(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                        GestureDetector(onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden), child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                            GestureDetector(onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden), child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        _isLoading 
+                          ? const SizedBox(height: 38, width: 38, child: CircularProgressIndicator(color: Colors.white))
+                          : Text(_isBalanceHidden ? '₦ ***' : '₦ $_balance', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis)),
+                            const Icon(Icons.copy, color: Colors.white70, size: 16),
+                          ],
+                        )
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    _isLoading 
-                      ? const SizedBox(height: 38, width: 38, child: CircularProgressIndicator(color: Colors.white))
-                      : Text(_isBalanceHidden ? '₦ •••••' : '₦ $_balance', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                        const Icon(Icons.copy, color: Colors.white70, size: 16),
-                      ],
+                    // The 3 ATM Dots
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(radius: 8, backgroundColor: Colors.red.withOpacity(0.8)),
+                          Transform.translate(offset: const Offset(-6, 0), child: CircleAvatar(radius: 8, backgroundColor: Colors.orange.withOpacity(0.9))),
+                          Transform.translate(offset: const Offset(-12, 0), child: CircleAvatar(radius: 8, backgroundColor: Colors.yellow.withOpacity(0.9))),
+                        ],
+                      ),
                     )
                   ],
                 ),
@@ -286,7 +320,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
               const SizedBox(height: 16),
 
-              // Restored Full Grid
               GridView.count(
                 crossAxisCount: 3,
                 shrinkWrap: true,
