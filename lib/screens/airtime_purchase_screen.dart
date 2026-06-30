@@ -23,6 +23,18 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
   void initState() {
     super.initState();
     _fetchBalance();
+    
+    // Listeners for real-time validation
+    _phoneController.addListener(() => setState(() {}));
+    _amountController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _amountController.dispose();
+    _pinController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchBalance() async {
@@ -37,20 +49,31 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
     } catch (_) {}
   }
 
-  void _showConfirmationModal() {
+  // VALIDATION LOGIC
+  bool get _isValid {
+    if (_selectedNetwork.isEmpty) return false;
+    if (_phoneController.text.length != 11) return false;
     final amount = double.tryParse(_amountController.text) ?? 0;
+    if (amount < 100) return false;
+    return true;
+  }
 
-    if (_selectedNetwork.isEmpty || _phoneController.text.length < 10 || _amountController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete all fields')));
-      return;
+  String? get _phoneError {
+    if (_phoneController.text.isNotEmpty && _phoneController.text.length != 11) {
+      return 'Phone number must be exactly 11 digits';
     }
-    
-    // ENFORCED MINIMUM AMOUNT
-    if (amount < 100) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('The minimum amount for Airtime is ₦100')));
-      return;
-    }
+    return null;
+  }
 
+  String? get _amountError {
+    if (_amountController.text.isNotEmpty) {
+      final amount = double.tryParse(_amountController.text) ?? 0;
+      if (amount < 100) return 'Minimum amount is ₦100';
+    }
+    return null;
+  }
+
+  void _showConfirmationModal() {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -82,6 +105,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
                 decoration: InputDecoration(
+                  counterText: '',
                   hintText: '****', 
                   filled: true,
                   fillColor: isDark ? Colors.grey.shade900 : Colors.white,
@@ -140,12 +164,14 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
       );
       
       final data = json.decode(response.body);
-      final isSuccess = data['success'] == true;
-      txData['Status'] = isSuccess ? 'Successful' : 'Failed';
-      _navigateToStatus(isSuccess, data['message'] ?? 'Transaction processed.', txData);
+      if (data['success'] == true) {
+        txData['Status'] = 'Successful';
+        _navigateToStatus(true, data['message'] ?? 'Transaction processed.', txData);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Transaction failed.'), backgroundColor: Colors.red));
+      }
     } catch (e) {
-      txData['Status'] = 'Failed';
-      _navigateToStatus(false, 'Network connection timed out.', txData);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network connection timed out.'), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
       _pinController.clear();
@@ -205,11 +231,11 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
             const SizedBox(height: 24),
             Text('2. Phone Number', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _buildTextField(Icons.smartphone, 'e.g 08012345678', _phoneController, isDark),
+            _buildTextField(Icons.smartphone, 'e.g 08012345678', _phoneController, isDark, maxLength: 11, errorText: _phoneError),
             const SizedBox(height: 24),
             Text('3. Amount (₦)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _buildTextField(Icons.payments_outlined, 'Min ₦100', _amountController, isDark),
+            _buildTextField(Icons.payments_outlined, 'Min ₦100', _amountController, isDark, errorText: _amountError),
             const SizedBox(height: 16),
             
             // QUICK AMOUNT CHIPS
@@ -220,7 +246,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
                 return InkWell(
                   onTap: () {
                     _amountController.text = amount.toString();
-                    FocusScope.of(context).unfocus(); // Close keyboard on quick select
+                    FocusScope.of(context).unfocus();
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -236,9 +262,16 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _isPurchasing ? null : _showConfirmationModal,
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                child: _isPurchasing ? const CircularProgressIndicator(color: Colors.white) : const Text('Proceed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                // Disabled if not valid or currently purchasing
+                onPressed: (!_isValid || _isPurchasing) ? null : _showConfirmationModal,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor, 
+                  disabledBackgroundColor: primaryColor.withOpacity(0.3),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                ),
+                child: _isPurchasing 
+                  ? const CircularProgressIndicator(color: Colors.white) 
+                  : const Text('Proceed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ),
           ],
@@ -272,15 +305,37 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
     );
   }
 
-  Widget _buildTextField(IconData icon, String hint, TextEditingController controller, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-      child: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
-        decoration: InputDecoration(prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20), hintText: hint, hintStyle: TextStyle(color: Colors.grey.shade500), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 16)),
-      ),
+  Widget _buildTextField(IconData icon, String hint, TextEditingController controller, bool isDark, {int? maxLength, String? errorText}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white, 
+            borderRadius: BorderRadius.circular(12), 
+            border: Border.all(color: errorText != null ? Colors.red : (isDark ? Colors.grey.shade800 : Colors.grey.shade200))
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            maxLength: maxLength,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
+            decoration: InputDecoration(
+              counterText: '', // Hide length counter
+              prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20), 
+              hintText: hint, 
+              hintStyle: TextStyle(color: Colors.grey.shade500), 
+              border: InputBorder.none, 
+              contentPadding: const EdgeInsets.symmetric(vertical: 16)
+            ),
+          ),
+        ),
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6.0, left: 4.0),
+            child: Text(errorText, style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+          )
+      ],
     );
   }
 }

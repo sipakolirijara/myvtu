@@ -31,6 +31,16 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     super.initState();
     _fetchBalance();
     _fetchPlans();
+    
+    // Listen to phone input to validate real-time 11 digits
+    _phoneController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _pinController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchBalance() async {
@@ -83,6 +93,21 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     }
   }
 
+  // VALIDATION LOGIC
+  bool get _isValid {
+    if (_selectedNetwork.isEmpty) return false;
+    if (_selectedPlanId == null) return false;
+    if (_phoneController.text.length != 11) return false;
+    return true;
+  }
+
+  String? get _phoneError {
+    if (_phoneController.text.isNotEmpty && _phoneController.text.length != 11) {
+      return 'Phone number must be exactly 11 digits';
+    }
+    return null;
+  }
+
   void _showSelectorModal({required String title, required List<dynamic> items, required Function(dynamic) onSelect, bool isPlan = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).primaryColor;
@@ -127,11 +152,6 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
   }
 
   void _showConfirmationModal() {
-    if (_selectedNetwork.isEmpty || _phoneController.text.length < 10 || _selectedPlanId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete all fields')));
-      return;
-    }
-
     final selectedPlan = _allPlans.firstWhere((p) => p['id'].toString() == _selectedPlanId);
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -166,6 +186,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
                 decoration: InputDecoration(
+                  counterText: '',
                   hintText: '****', 
                   filled: true,
                   fillColor: isDark ? Colors.grey.shade900 : Colors.white,
@@ -232,7 +253,6 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       );
       
       final data = json.decode(response.body);
-      
       if (data['success'] == true) {
         txData['Status'] = 'Successful';
         _navigateToStatus(true, data['message'] ?? 'Transaction processed.', txData);
@@ -351,8 +371,13 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _isPurchasing ? null : _showConfirmationModal,
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                // Disabled if not valid or currently purchasing
+                onPressed: (!_isValid || _isPurchasing) ? null : _showConfirmationModal,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor, 
+                  disabledBackgroundColor: primaryColor.withOpacity(0.3),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                ),
                 child: _isPurchasing ? const CircularProgressIndicator(color: Colors.white) : const Text('Proceed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ),
@@ -387,14 +412,37 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
   }
 
   Widget _buildTextField(bool isDark) {
-    return Container(
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-      child: TextField(
-        controller: _phoneController,
-        keyboardType: TextInputType.phone,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
-        decoration: InputDecoration(prefixIcon: Icon(Icons.smartphone, color: Colors.grey.shade400, size: 20), hintText: 'e.g 08012345678', hintStyle: TextStyle(color: Colors.grey.shade500), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 16)),
-      ),
+    final errorText = _phoneError;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white, 
+            borderRadius: BorderRadius.circular(12), 
+            border: Border.all(color: errorText != null ? Colors.red : (isDark ? Colors.grey.shade800 : Colors.grey.shade200))
+          ),
+          child: TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            maxLength: 11,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
+            decoration: InputDecoration(
+              counterText: '', // Hide length counter
+              prefixIcon: Icon(Icons.smartphone, color: Colors.grey.shade400, size: 20), 
+              hintText: 'e.g 08012345678', 
+              hintStyle: TextStyle(color: Colors.grey.shade500), 
+              border: InputBorder.none, 
+              contentPadding: const EdgeInsets.symmetric(vertical: 16)
+            ),
+          ),
+        ),
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6.0, left: 4.0),
+            child: Text(errorText, style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+          )
+      ],
     );
   }
 
