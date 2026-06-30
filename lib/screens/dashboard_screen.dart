@@ -18,9 +18,12 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
-  // Use a dynamic getter so we can pass the navigation callback to the HomeView
+  // We pass both navigation callbacks to the child view
   List<Widget> get _screens => [
-    DashboardHomeView(onNavigateToProfile: () => setState(() => _currentIndex = 3)),
+    DashboardHomeView(
+      onNavigateToProfile: () => setState(() => _currentIndex = 3),
+      onNavigateToHistory: () => setState(() => _currentIndex = 2),
+    ),
     const ServicesPlaceholderView(),
     const WalletScreen(),
     const ProfileScreen(),
@@ -62,9 +65,14 @@ class ServicesPlaceholderView extends StatelessWidget {
 }
 
 class DashboardHomeView extends StatefulWidget {
-  final VoidCallback onNavigateToProfile; // Added callback for seamless bottom-nav routing
+  final VoidCallback onNavigateToProfile; 
+  final VoidCallback onNavigateToHistory; 
   
-  const DashboardHomeView({Key? key, required this.onNavigateToProfile}) : super(key: key);
+  const DashboardHomeView({
+    Key? key, 
+    required this.onNavigateToProfile, 
+    required this.onNavigateToHistory
+  }) : super(key: key);
 
   @override
   State<DashboardHomeView> createState() => _DashboardHomeViewState();
@@ -78,7 +86,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   String _accountNumber = 'Loading...';
   String _appName = 'VTU App';
   bool _isLoading = true;
-  bool _isCopied = false; // State for copy animation
+  bool _isCopied = false;
 
   @override
   void initState() {
@@ -229,7 +237,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     );
   }
 
-  // ATM UI Helper
   Widget _buildAtmDot(Color color) {
     return Container(
       width: 22,
@@ -262,7 +269,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         ),
         actions: [
           GestureDetector(
-            onTap: widget.onNavigateToProfile, // Uses the callback to route to bottom tab
+            onTap: widget.onNavigateToProfile,
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: CircleAvatar(backgroundColor: primaryColor.withOpacity(0.2), child: Icon(Icons.person, color: primaryColor)),
@@ -312,7 +319,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           : RichText(
                               text: TextSpan(
                                 children: [
-                                  // Forced standard font for Naira to fix rendering, and removed the space to bring it closer
                                   const TextSpan(text: '₦', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
                                   TextSpan(text: _isBalanceHidden ? '***' : _balance, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                                 ]
@@ -344,7 +350,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                         )
                       ],
                     ),
-                    // ATM Dots moved to Bottom Right and spaced nicely
                     Positioned(
                       bottom: -5,
                       right: -5,
@@ -377,7 +382,8 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   _buildServiceTile(context, Icons.tv, 'Cable TV', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cable TV module coming soon.')))),
                   _buildServiceTile(context, Icons.bolt, 'Electricity', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Electricity module coming soon.')))),
                   _buildServiceTile(context, Icons.school, 'Exam Pins', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exam Pins module coming soon.')))),
-                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', () => setState(() => _currentIndex = 2)), // Route to history tab
+                  // THIS LINE IS NOW USING THE CORRECT PASSED CALLBACK
+                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', widget.onNavigateToHistory), 
                 ],
               )
             ],
