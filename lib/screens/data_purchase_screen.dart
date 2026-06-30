@@ -65,7 +65,12 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       _selectedNetwork = network;
       _selectedCategory = null;
       _selectedPlanId = null;
-      _availableCategories = _allPlans.where((plan) => plan['network'] == network).map((plan) => plan['category'].toString()).toSet().toList();
+      // Filter dynamically based on the exact network chosen
+      _availableCategories = _allPlans
+          .where((plan) => plan['network'].toString().toUpperCase() == network.toUpperCase())
+          .map((plan) => plan['category'].toString())
+          .toSet()
+          .toList();
     });
   }
 
@@ -73,8 +78,20 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     setState(() {
       _selectedCategory = category;
       _selectedPlanId = null;
-      _filteredPlans = _allPlans.where((plan) => plan['network'] == _selectedNetwork && plan['category'] == category).toList();
+      _filteredPlans = _allPlans
+          .where((plan) => plan['network'].toString().toUpperCase() == _selectedNetwork.toUpperCase() && plan['category'].toString() == category)
+          .toList();
     });
+  }
+
+  Color _getNetworkColor(String network) {
+    switch (network.toUpperCase()) {
+      case 'MTN': return const Color(0xFFFFB300); // Orange/Yellow
+      case 'AIRTEL': return const Color(0xFFFF0000); // Red
+      case 'GLO': return const Color(0xFF009900); // Green
+      case '9MOBILE': return const Color(0xFF006600); // Dark Green
+      default: return Colors.grey;
+    }
   }
 
   void _showConfirmationModal() {
@@ -85,10 +102,12 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
 
     final selectedPlan = _allPlans.firstWhere((p) => p['id'].toString() == _selectedPlanId);
     final primaryColor = Theme.of(context).primaryColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
@@ -97,14 +116,14 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Confirm Purchase', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+              Text('Confirm Purchase', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
               const SizedBox(height: 20),
-              _buildConfirmRow('Network', _selectedNetwork, primaryColor),
-              _buildConfirmRow('Phone Number', _phoneController.text, primaryColor),
-              _buildConfirmRow('Data Plan', selectedPlan['plan_name'], primaryColor),
-              _buildConfirmRow('Amount', '₦${selectedPlan['retail_price']}', primaryColor, isAmount: true),
+              _buildConfirmRow('Network', _selectedNetwork, primaryColor, isDark),
+              _buildConfirmRow('Phone Number', _phoneController.text, primaryColor, isDark),
+              _buildConfirmRow('Data Plan', selectedPlan['plan_name'], primaryColor, isDark),
+              _buildConfirmRow('Amount', '₦${selectedPlan['retail_price']}', primaryColor, isDark, isAmount: true),
               const SizedBox(height: 20),
-              const Text('Enter Transaction PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              Text('Enter Transaction PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
               const SizedBox(height: 10),
               TextField(
                 controller: _pinController,
@@ -112,8 +131,13 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
                 keyboardType: TextInputType.number,
                 maxLength: 4,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold),
-                decoration: InputDecoration(hintText: '****', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                style: TextStyle(fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                decoration: InputDecoration(
+                  hintText: '****', 
+                  filled: true,
+                  fillColor: isDark ? Colors.grey.shade900 : Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -140,14 +164,14 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     );
   }
 
-  Widget _buildConfirmRow(String label, String value, Color primaryColor, {bool isAmount = false}) {
+  Widget _buildConfirmRow(String label, String value, Color primaryColor, bool isDark, {bool isAmount = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-          Text(value, style: TextStyle(color: isAmount ? primaryColor : Colors.black87, fontSize: 15, fontWeight: isAmount ? FontWeight.bold : FontWeight.w600)),
+          Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+          Text(value, style: TextStyle(color: isAmount ? primaryColor : (isDark ? Colors.white : Colors.black87), fontSize: 15, fontWeight: isAmount ? FontWeight.bold : FontWeight.w600)),
         ],
       ),
     );
@@ -157,8 +181,6 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     setState(() => _isPurchasing = true);
     
     final selectedPlan = _allPlans.firstWhere((p) => p['id'].toString() == _selectedPlanId);
-    
-    // Construct Detailed Receipt Data
     final txData = {
       'Service': 'Data Purchase',
       'Network': _selectedNetwork,
@@ -183,14 +205,16 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       );
       
       final data = json.decode(response.body);
-      final isSuccess = data['success'] == true;
-      txData['Status'] = isSuccess ? 'Successful' : 'Failed';
       
-      _navigateToStatus(isSuccess, data['message'] ?? 'Transaction processed.', txData);
-      
+      // UX FIX: Only show receipt if successful. Show SnackBar if wrong PIN/Failed.
+      if (data['success'] == true) {
+        txData['Status'] = 'Successful';
+        _navigateToStatus(true, data['message'] ?? 'Transaction processed.', txData);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Transaction failed.'), backgroundColor: Colors.red));
+      }
     } catch (e) {
-      txData['Status'] = 'Failed';
-      _navigateToStatus(false, 'Network connection timed out.', txData);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network connection timed out.'), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
       _pinController.clear();
@@ -222,12 +246,13 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF4F6F9),
       appBar: AppBar(
-        title: const Text('Buy Data', style: TextStyle(color: Color(0xFF1E1E1E), fontWeight: FontWeight.bold, fontSize: 18)),
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20), onPressed: () => Navigator.pop(context)),
+        title: Text('Buy Data', style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E1E1E), fontWeight: FontWeight.bold, fontSize: 18)),
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios, color: isDark ? Colors.white : Colors.black87, size: 20), onPressed: () => Navigator.pop(context)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -248,21 +273,21 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('1. Select Network', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
+            Text('1. Select Network', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _buildNetworkSelector(primaryColor),
+            _buildNetworkSelector(isDark),
             const SizedBox(height: 24),
-            const Text('2. Phone Number', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
+            Text('2. Phone Number', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _buildTextField(),
+            _buildTextField(isDark),
             const SizedBox(height: 24),
-            const Text('3. Data Category', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
+            Text('3. Data Category', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _buildCategoryDropdown(),
+            _buildCategoryDropdown(isDark),
             const SizedBox(height: 24),
-            const Text('4. Data Plan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
+            Text('4. Data Plan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 12),
-            _isLoadingPlans ? Center(child: CircularProgressIndicator(color: primaryColor)) : _buildPlanDropdown(),
+            _isLoadingPlans ? Center(child: CircularProgressIndicator(color: primaryColor)) : _buildPlanDropdown(isDark),
             const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
@@ -279,22 +304,23 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     );
   }
 
-  Color _getNetworkColor(String network) { switch (network) { case 'MTN': return const Color(0xFFFFB300); case 'AIRTEL': return const Color(0xFFFF0000); case 'GLO': return const Color(0xFF009900); case '9MOBILE': return const Color(0xFF006600); default: return Colors.grey; } }
-
-  Widget _buildNetworkSelector(Color primaryColor) {
+  Widget _buildNetworkSelector(bool isDark) {
     final networks = ['MTN', 'AIRTEL', 'GLO', '9MOBILE'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: networks.map((network) {
         final isSelected = _selectedNetwork == network;
         final netColor = _getNetworkColor(network);
-        final isDark = Theme.of(context).brightness == Brightness.dark;
         return GestureDetector(
           onTap: () => _onNetworkSelected(network),
           child: Container(
             width: 75,
             padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(color: isSelected ? netColor : (isDark ? const Color(0xFF1E1E1E) : Colors.white), border: Border.all(color: isSelected ? netColor : (isDark ? Colors.grey.shade800 : Colors.grey.shade300), width: isSelected ? 2 : 1), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: isSelected ? netColor : (isDark ? const Color(0xFF1E1E1E) : Colors.white), 
+              border: Border.all(color: isSelected ? netColor : (isDark ? Colors.grey.shade800 : Colors.grey.shade300), width: isSelected ? 2 : 1), 
+              borderRadius: BorderRadius.circular(12)
+            ),
             child: Center(child: Text(network, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.grey.shade500))),
           ),
         );
@@ -302,44 +328,48 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     );
   }
 
-  Widget _buildTextField() {
+  Widget _buildTextField(bool isDark) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
       child: TextField(
         controller: _phoneController,
         keyboardType: TextInputType.phone,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        decoration: InputDecoration(prefixIcon: Icon(Icons.smartphone, color: Colors.grey.shade400, size: 20), hintText: 'e.g 08012345678', border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 16)),
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
+        decoration: InputDecoration(prefixIcon: Icon(Icons.smartphone, color: Colors.grey.shade400, size: 20), hintText: 'e.g 08012345678', hintStyle: TextStyle(color: Colors.grey.shade500), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 16)),
       ),
     );
   }
 
-  Widget _buildCategoryDropdown() {
+  Widget _buildCategoryDropdown(bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           isExpanded: true,
-          hint: Text(_selectedNetwork.isEmpty ? 'Select a network first' : 'Select Category', style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+          dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          hint: Text(_selectedNetwork.isEmpty ? 'Select a network first' : 'Select Category', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
           value: _selectedCategory,
-          items: _availableCategories.map((String cat) => DropdownMenuItem<String>(value: cat, child: Text(cat))).toList(),
+          // FIX: Explicitly set text color so it doesn't vanish in light/dark mode
+          items: _availableCategories.map((String cat) => DropdownMenuItem<String>(value: cat, child: Text(cat, style: TextStyle(color: isDark ? Colors.white : Colors.black87)))).toList(),
           onChanged: _selectedNetwork.isEmpty ? null : _onCategorySelected,
         ),
       ),
     );
   }
 
-  Widget _buildPlanDropdown() {
+  Widget _buildPlanDropdown(bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           isExpanded: true,
-          hint: Text(_selectedCategory == null ? 'Select a category first' : 'Choose a bundle', style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+          dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          hint: Text(_selectedCategory == null ? 'Select a category first' : 'Choose a bundle', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
           value: _selectedPlanId,
-          items: _filteredPlans.map<DropdownMenuItem<String>>((dynamic plan) => DropdownMenuItem<String>(value: plan['id'].toString(), child: Text('${plan['plan_name']} - ₦${plan['retail_price']}'))).toList(),
+          // FIX: Explicitly set text color here too
+          items: _filteredPlans.map<DropdownMenuItem<String>>((dynamic plan) => DropdownMenuItem<String>(value: plan['id'].toString(), child: Text('${plan['plan_name']} - ₦${plan['retail_price']}', style: TextStyle(color: isDark ? Colors.white : Colors.black87)))).toList(),
           onChanged: _selectedCategory == null ? null : (String? newValue) => setState(() => _selectedPlanId = newValue),
         ),
       ),
