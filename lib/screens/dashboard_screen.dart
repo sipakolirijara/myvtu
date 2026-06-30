@@ -17,8 +17,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  DateTime? currentBackPressTime;
 
-  // We pass both navigation callbacks to the child view
   List<Widget> get _screens => [
     DashboardHomeView(
       onNavigateToProfile: () => setState(() => _currentIndex = 3),
@@ -29,25 +29,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const ProfileScreen(),
   ];
 
+  // 1. Double tap back button to exit
+  Future<bool> onWillPop() {
+    DateTime now = DateTime.now();
+    if (currentBackPressTime == null || now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
+      currentBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Press back again to exit'), duration: Duration(seconds: 2)));
+      return Future.value(false);
+    }
+    return Future.value(true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        selectedItemColor: Theme.of(context).primaryColor,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Services'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+    return WillPopScope(
+      onWillPop: onWillPop,
+      child: Scaffold(
+        body: IndexedStack(index: _currentIndex, children: _screens),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          selectedItemColor: Theme.of(context).primaryColor,
+          unselectedItemColor: Colors.grey,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Services'),
+            BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'History'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          ],
+        ),
       ),
     );
   }
@@ -70,8 +84,8 @@ class DashboardHomeView extends StatefulWidget {
   
   const DashboardHomeView({
     Key? key, 
-    required this.onNavigateToProfile, 
-    required this.onNavigateToHistory
+    required this.onNavigateToProfile,
+    required this.onNavigateToHistory,
   }) : super(key: key);
 
   @override
@@ -91,8 +105,24 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   @override
   void initState() {
     super.initState();
+    _loadBalanceVisibility(); // 2. Load persisted hidden state
     _fetchDashboardData();
     _enforceSecurityPin();
+  }
+
+  Future<void> _loadBalanceVisibility() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isBalanceHidden = prefs.getBool('hide_balance') ?? false;
+    });
+  }
+
+  void _toggleBalance() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isBalanceHidden = !_isBalanceHidden;
+      prefs.setBool('hide_balance', _isBalanceHidden); // Persist user choice
+    });
   }
 
   Future<void> _fetchDashboardData() async {
@@ -237,14 +267,15 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     );
   }
 
+  // 4. Solid, smaller ATM Dots
   Widget _buildAtmDot(Color color) {
     return Container(
-      width: 22,
-      height: 22,
+      width: 14,
+      height: 14,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.0),
       ),
     );
   }
@@ -303,26 +334,33 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                            GestureDetector(
-                              onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden), 
-                              child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20)
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
+                        const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const SizedBox(height: 8),
                         _isLoading 
-                          ? const SizedBox(height: 38, width: 38, child: CircularProgressIndicator(color: Colors.white))
-                          : RichText(
-                              text: TextSpan(
-                                children: [
-                                  const TextSpan(text: '₦', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
-                                  TextSpan(text: _isBalanceHidden ? '***' : _balance, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                                ]
-                              )
+                          ? const SizedBox(height: 32, width: 32, child: CircularProgressIndicator(color: Colors.white))
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: _isBalanceHidden 
+                                    // 5. Hide Naira sign completely -> "****"
+                                    ? const Text('****', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 2.0))
+                                    : RichText(
+                                        text: TextSpan(
+                                          children: [
+                                            // 6. Reduced size to 26
+                                            const TextSpan(text: '₦', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+                                            TextSpan(text: _balance, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                                          ]
+                                        )
+                                      ),
+                                ),
+                                // 3. Toggle view moved directly next to the amount
+                                GestureDetector(
+                                  onTap: _toggleBalance, 
+                                  child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white, size: 24)
+                                ),
+                              ],
                             ),
                         const SizedBox(height: 20),
                         Row(
@@ -350,15 +388,18 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                         )
                       ],
                     ),
+                    // 4. ATM Dots: Top Right, solid colors, separated by 4px gap, smaller size
                     Positioned(
-                      bottom: -5,
-                      right: -5,
+                      top: 0,
+                      right: 0,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildAtmDot(Colors.red.withOpacity(0.85)),
-                          Transform.translate(offset: const Offset(-8, 0), child: _buildAtmDot(Colors.orange.withOpacity(0.85))),
-                          Transform.translate(offset: const Offset(-16, 0), child: _buildAtmDot(Colors.yellow.withOpacity(0.85))),
+                          _buildAtmDot(Colors.red),
+                          const SizedBox(width: 4),
+                          _buildAtmDot(Colors.orange),
+                          const SizedBox(width: 4),
+                          _buildAtmDot(Colors.yellow),
                         ],
                       ),
                     )
@@ -382,8 +423,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   _buildServiceTile(context, Icons.tv, 'Cable TV', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cable TV module coming soon.')))),
                   _buildServiceTile(context, Icons.bolt, 'Electricity', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Electricity module coming soon.')))),
                   _buildServiceTile(context, Icons.school, 'Exam Pins', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exam Pins module coming soon.')))),
-                  // THIS LINE IS NOW USING THE CORRECT PASSED CALLBACK
-                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', widget.onNavigateToHistory), 
+                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', widget.onNavigateToHistory),
                 ],
               )
             ],
