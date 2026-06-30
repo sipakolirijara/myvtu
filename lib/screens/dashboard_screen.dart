@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -17,8 +18,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const DashboardHomeView(),
+  // Use a dynamic getter so we can pass the navigation callback to the HomeView
+  List<Widget> get _screens => [
+    DashboardHomeView(onNavigateToProfile: () => setState(() => _currentIndex = 3)),
     const ServicesPlaceholderView(),
     const WalletScreen(),
     const ProfileScreen(),
@@ -60,7 +62,9 @@ class ServicesPlaceholderView extends StatelessWidget {
 }
 
 class DashboardHomeView extends StatefulWidget {
-  const DashboardHomeView({Key? key}) : super(key: key);
+  final VoidCallback onNavigateToProfile; // Added callback for seamless bottom-nav routing
+  
+  const DashboardHomeView({Key? key, required this.onNavigateToProfile}) : super(key: key);
 
   @override
   State<DashboardHomeView> createState() => _DashboardHomeViewState();
@@ -74,6 +78,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   String _accountNumber = 'Loading...';
   String _appName = 'VTU App';
   bool _isLoading = true;
+  bool _isCopied = false; // State for copy animation
 
   @override
   void initState() {
@@ -224,12 +229,24 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     );
   }
 
+  // ATM UI Helper
+  Widget _buildAtmDot(Color color) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Splitting dynamic name cleanly
     List<String> nameParts = _appName.split(' ');
     String firstWord = nameParts.isNotEmpty ? nameParts[0] : 'App';
     String secondWord = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
@@ -245,7 +262,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         ),
         actions: [
           GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            onTap: widget.onNavigateToProfile, // Uses the callback to route to bottom tab
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: CircleAvatar(backgroundColor: primaryColor.withOpacity(0.2), child: Icon(Icons.person, color: primaryColor)),
@@ -265,7 +282,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               Text('Welcome back, $_firstName', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const SizedBox(height: 20),
               
-              // ATM Card Layout
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -275,6 +291,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
                 ),
                 child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,32 +300,60 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                            GestureDetector(onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden), child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20)),
+                            GestureDetector(
+                              onTap: () => setState(() => _isBalanceHidden = !_isBalanceHidden), 
+                              child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white70, size: 20)
+                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
                         _isLoading 
                           ? const SizedBox(height: 38, width: 38, child: CircularProgressIndicator(color: Colors.white))
-                          : Text(_isBalanceHidden ? '₦ ***' : '₦ $_balance', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                          : RichText(
+                              text: TextSpan(
+                                children: [
+                                  // Forced standard font for Naira to fix rendering, and removed the space to bring it closer
+                                  const TextSpan(text: '₦', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                                  TextSpan(text: _isBalanceHidden ? '***' : _balance, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                                ]
+                              )
+                            ),
                         const SizedBox(height: 20),
                         Row(
                           children: [
                             Expanded(child: Text('$_accountNumber ($_bankName)', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                            const Icon(Icons.copy, color: Colors.white70, size: 16),
+                            GestureDetector(
+                              onTap: () async {
+                                await Clipboard.setData(ClipboardData(text: _accountNumber));
+                                setState(() => _isCopied = true);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account details copied!')));
+                                await Future.delayed(const Duration(seconds: 2));
+                                if (mounted) setState(() => _isCopied = false);
+                              },
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: Icon(
+                                  _isCopied ? Icons.check_circle : Icons.copy,
+                                  key: ValueKey<bool>(_isCopied),
+                                  color: _isCopied ? Colors.greenAccent : Colors.white70,
+                                  size: 18
+                                ),
+                              ),
+                            ),
                           ],
                         )
                       ],
                     ),
-                    // The 3 ATM Dots
+                    // ATM Dots moved to Bottom Right and spaced nicely
                     Positioned(
-                      top: 0,
-                      right: 0,
+                      bottom: -5,
+                      right: -5,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          CircleAvatar(radius: 8, backgroundColor: Colors.red.withOpacity(0.8)),
-                          Transform.translate(offset: const Offset(-6, 0), child: CircleAvatar(radius: 8, backgroundColor: Colors.orange.withOpacity(0.9))),
-                          Transform.translate(offset: const Offset(-12, 0), child: CircleAvatar(radius: 8, backgroundColor: Colors.yellow.withOpacity(0.9))),
+                          _buildAtmDot(Colors.red.withOpacity(0.85)),
+                          Transform.translate(offset: const Offset(-8, 0), child: _buildAtmDot(Colors.orange.withOpacity(0.85))),
+                          Transform.translate(offset: const Offset(-16, 0), child: _buildAtmDot(Colors.yellow.withOpacity(0.85))),
                         ],
                       ),
                     )
@@ -332,7 +377,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   _buildServiceTile(context, Icons.tv, 'Cable TV', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cable TV module coming soon.')))),
                   _buildServiceTile(context, Icons.bolt, 'Electricity', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Electricity module coming soon.')))),
                   _buildServiceTile(context, Icons.school, 'Exam Pins', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exam Pins module coming soon.')))),
-                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()))),
+                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', () => setState(() => _currentIndex = 2)), // Route to history tab
                 ],
               )
             ],
