@@ -30,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const ProfileScreen(),
   ];
 
+  // 1. Double tap back button to exit
   Future<bool> onWillPop() {
     DateTime now = DateTime.now();
     if (currentBackPressTime == null || now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
@@ -43,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    
     return WillPopScope(
       onWillPop: onWillPop,
       child: Scaffold(
@@ -79,11 +80,11 @@ class ServicesPlaceholderView extends StatelessWidget {
 }
 
 class DashboardHomeView extends StatefulWidget {
-  final VoidCallback onNavigateToProfile;
-  final VoidCallback onNavigateToHistory;
-
+  final VoidCallback onNavigateToProfile; 
+  final VoidCallback onNavigateToHistory; 
+  
   const DashboardHomeView({
-    Key? key,
+    Key? key, 
     required this.onNavigateToProfile,
     required this.onNavigateToHistory,
   }) : super(key: key);
@@ -105,12 +106,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   @override
   void initState() {
     super.initState();
-    _loadBalanceVisibility();
+    _loadBalanceVisibility(); // 2. Load persisted hidden state
     _fetchDashboardData();
     _enforceSecurityPin();
   }
 
-  // Formats a raw numeric string like "1234567.5" into "1,234,567.50"
   String _formatBalance(String balance) {
     double value = double.tryParse(balance) ?? 0.0;
     String formatted = value.toStringAsFixed(2);
@@ -142,7 +142,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isBalanceHidden = !_isBalanceHidden;
-      prefs.setBool('hide_balance', _isBalanceHidden);
+      prefs.setBool('hide_balance', _isBalanceHidden); // Persist user choice
     });
   }
 
@@ -150,7 +150,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-
+      
       setState(() {
         _appName = prefs.getString('app_name') ?? 'VTU App';
       });
@@ -207,83 +207,88 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               title: const Row(
                 children: [
-                  Icon(Icons.lock_outline),
+                  Icon(Icons.lock, color: Colors.orange),
                   SizedBox(width: 8),
-                  Text('Set Up Security PIN'),
+                  Text('Set Payment PIN', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: newPinController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'New 4-digit PIN'),
-                  ),
-                  TextField(
-                    controller: confirmPinController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Confirm PIN'),
-                  ),
-                  if (errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  if (errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.withOpacity(0.3))),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold))),
+                        ],
+                      ),
                     ),
+                  ],
+                  const Text('Please set up your 4-digit Payment PIN to authorize transactions.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 20),
+                  Text('Enter New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                  TextField(
+                    controller: newPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, 
+                    style: TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                    decoration: InputDecoration(filled: true, fillColor: isDark ? Colors.grey.shade900 : Colors.grey.shade100, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Confirm PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                  TextField(
+                    controller: confirmPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, 
+                    style: TextStyle(letterSpacing: 8.0, fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                    decoration: InputDecoration(filled: true, fillColor: isDark ? Colors.grey.shade900 : Colors.grey.shade100, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                  ),
                 ],
               ),
               actions: [
-                ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (newPinController.text.length != 4 || newPinController.text != confirmPinController.text) {
-                            setDialogState(() => errorMessage = 'PINs must match and be 4 digits');
-                            return;
-                          }
-                          setDialogState(() {
-                            isSaving = true;
-                            errorMessage = null;
-                          });
-                          try {
-                            final prefs = await SharedPreferences.getInstance();
-                            final token = prefs.getString('api_token') ?? '';
-                            final response = await http.post(
-                              Uri.parse(ApiConfig.baseUrl + 'set_pin.php'),
-                              body: {'token': token, 'pin': newPinController.text},
-                            );
-                            final data = json.decode(response.body);
-                            if (data['success'] == true) {
-                              if (mounted) Navigator.pop(context);
-                            } else {
-                              setDialogState(() {
-                                isSaving = false;
-                                errorMessage = data['message'] ?? 'Failed to set PIN';
-                              });
-                            }
-                          } catch (_) {
-                            setDialogState(() {
-                              isSaving = false;
-                              errorMessage = 'Network error, please try again';
-                            });
-                          }
-                        },
-                  child: isSaving
-                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Save PIN'),
-                ),
+                SizedBox(
+                  width: double.infinity, height: 50,
+                  child: ElevatedButton(
+                    onPressed: isSaving ? null : () async {
+                      if (newPinController.text.length != 4 || newPinController.text != confirmPinController.text) {
+                        setDialogState(() => errorMessage = 'PINs must be exactly 4 digits and match.');
+                        return;
+                      }
+                      setDialogState(() {
+                        isSaving = true;
+                        errorMessage = null;
+                      });
+                      try {
+                        final prefs = await SharedPreferences.getInstance();
+                        final token = prefs.getString('api_token') ?? '';
+                        final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'set_pin.php'), body: {'token': token, 'new_pin': newPinController.text, 'current_pin': ''});
+                        final data = json.decode(response.body);
+                        if (data['success']) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment PIN successfully configured!'), backgroundColor: Colors.green));
+                        } else {
+                          setDialogState(() => errorMessage = data['message']);
+                        }
+                      } catch (e) {
+                        setDialogState(() => errorMessage = 'Network error.');
+                      } finally {
+                        setDialogState(() => isSaving = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: isSaving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Save Payment PIN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                )
               ],
             );
-          },
+          }
         ),
       ),
     );
   }
 
+  // 4. Solid, smaller ATM Dots
   Widget _buildAtmDot(Color color) {
     return Container(
       width: 14,
@@ -335,7 +340,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
             children: [
               Text('Welcome back, $_firstName', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const SizedBox(height: 20),
-
+              
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -352,25 +357,28 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                       children: [
                         const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
                         const SizedBox(height: 8),
-                        _isLoading
+                        _isLoading 
                           ? const SizedBox(height: 32, width: 32, child: CircularProgressIndicator(color: Colors.white))
                           : Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Expanded(
-                                  child: _isBalanceHidden
+                                  child: _isBalanceHidden 
+                                    // 5. Hide Naira sign completely -> "****"
                                     ? const Text('****', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 2.0))
                                     : RichText(
                                         text: TextSpan(
                                           children: [
+                                            // 6. Reduced size to 26
                                             const TextSpan(text: '₦', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
                                             TextSpan(text: _formatBalance(_balance), style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                                           ]
                                         )
                                       ),
                                 ),
+                                // 3. Toggle view moved directly next to the amount
                                 GestureDetector(
-                                  onTap: _toggleBalance,
+                                  onTap: _toggleBalance, 
                                   child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white, size: 24)
                                 ),
                               ],
@@ -401,6 +409,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                         )
                       ],
                     ),
+                    // 4. ATM Dots: Top Right, solid colors, separated by 4px gap, smaller size
                     Positioned(
                       top: 0,
                       right: 0,
@@ -419,7 +428,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                 ),
               ),
               const SizedBox(height: 30),
-
+              
               Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
               const SizedBox(height: 16),
 
