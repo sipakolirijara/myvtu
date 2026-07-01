@@ -1,3 +1,4 @@
+import 'config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -21,7 +22,7 @@ void main() async {
 
 Future<void> _fetchAndCacheSettings() async {
   try {
-    final response = await http.get(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_settings.php')).timeout(const Duration(seconds: 5));
+    final response = await http.get(Uri.parse(ApiConfig.baseUrl + 'get_settings.php')).timeout(const Duration(seconds: 5));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       if (data['success'] == true) {

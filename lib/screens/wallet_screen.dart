@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -42,7 +43,7 @@ class _WalletScreenState extends State<WalletScreen> {
       }
 
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_transactions.php'),
+        Uri.parse(ApiConfig.baseUrl + 'get_transactions.php'),
         body: {'token': token, 'search': _searchController.text.trim(), 'category': _selectedCategory, 'start_date': startDate, 'end_date': endDate},
       );
       

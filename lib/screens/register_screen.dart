@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -30,7 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/register.php'),
+        Uri.parse(ApiConfig.baseUrl + 'register.php'),
         body: {
           'first_name': _firstNameController.text.trim(),
           'last_name': _lastNameController.text.trim(),

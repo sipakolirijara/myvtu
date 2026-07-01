@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -41,7 +42,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-      final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'), body: {'token': token});
+      final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'get_dashboard.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && mounted) setState(() => _balance = data['balance']);
@@ -159,7 +160,7 @@ class _AirtimePurchaseScreenState extends State<AirtimePurchaseScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/buy_airtime.php'),
+        Uri.parse(ApiConfig.baseUrl + 'buy_airtime.php'),
         body: {'token': token, 'network': _selectedNetwork, 'amount': _amountController.text.trim(), 'phone': _phoneController.text.trim(), 'pin': _pinController.text.trim()},
       );
       

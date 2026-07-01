@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -31,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/login.php'),
+        Uri.parse(ApiConfig.baseUrl + 'login.php'),
         body: {
           'email': email,
           'password': password,

@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -26,7 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-      final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_profile.php'), body: {'token': token});
+      final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'get_profile.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && mounted) setState(() => _profile = data);
@@ -81,7 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _setPin(String newPin, String currentPin) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('api_token') ?? '';
-    final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/set_pin.php'), body: {'token': token, 'new_pin': newPin, 'current_pin': currentPin});
+    final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'set_pin.php'), body: {'token': token, 'new_pin': newPin, 'current_pin': currentPin});
     final data = json.decode(response.body);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: data['success'] ? Colors.green : Colors.red));
     if (data['success']) _fetchProfile(); 

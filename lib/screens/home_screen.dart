@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'wallet_screen.dart';
 import 'profile_screen.dart';

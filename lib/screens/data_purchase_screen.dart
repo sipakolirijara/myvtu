@@ -1,3 +1,4 @@
+import '../config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -47,7 +48,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-      final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_dashboard.php'), body: {'token': token});
+      final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'get_dashboard.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && mounted) setState(() => _balance = data['balance']);
@@ -60,7 +61,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
-      final response = await http.post(Uri.parse('https://vtu.kainuwa.africa/api/mobile/get_data_plans.php'), body: {'token': token});
+      final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'get_data_plans.php'), body: {'token': token});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && mounted) setState(() => _allPlans = data['plans']);
@@ -248,7 +249,7 @@ class _DataPurchaseScreenState extends State<DataPurchaseScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
       final response = await http.post(
-        Uri.parse('https://vtu.kainuwa.africa/api/mobile/buy_data.php'),
+        Uri.parse(ApiConfig.baseUrl + 'buy_data.php'),
         body: {'token': token, 'network': _selectedNetwork, 'plan_id': _selectedPlanId.toString(), 'phone': _phoneController.text.trim(), 'pin': _pinController.text.trim()},
       );
       
