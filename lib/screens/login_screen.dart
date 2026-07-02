@@ -78,6 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -91,10 +93,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7351FF).withOpacity(0.1),
+                  color: primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(Icons.bolt, color: Color(0xFF7351FF), size: 30),
+                child: Icon(Icons.bolt, color: primaryColor, size: 30),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -117,9 +119,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {},
-                  child: const Text(
+                  child: Text(
                     'Forgot password?',
-                    style: TextStyle(color: Color(0xFF7351FF), fontWeight: FontWeight.w600),
+                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -131,10 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7351FF),
+                    backgroundColor: primaryColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 5,
-                    shadowColor: const Color(0xFF7351FF).withOpacity(0.4),
+                    shadowColor: primaryColor.withOpacity(0.4),
                   ),
                   child: _isLoading
                       ? const SizedBox(
@@ -154,9 +156,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));
                     },
-                    child: const Text(
+                    child: Text(
                       'Create one',
-                      style: TextStyle(color: Color(0xFF7351FF), fontWeight: FontWeight.bold),
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
