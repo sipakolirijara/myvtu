@@ -169,6 +169,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -211,12 +213,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 false,
                 onChanged: _onUsernameChanged,
                 suffixIcon: _usernameChecking
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
+                    ? Padding(
+                        padding: const EdgeInsets.all(14),
                         child: SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7351FF)),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor),
                         ),
                       )
                     : (_usernameHint != null
@@ -252,7 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7351FF),
+                    backgroundColor: primaryColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 5,
                   ),
