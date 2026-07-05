@@ -14,17 +14,17 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
 
   Future<void> _login() async {
-    final email = _emailController.text.trim();
+    final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showError('Please enter both email and password');
+    if (identifier.isEmpty || password.isEmpty) {
+      _showError('Please enter your username, email, or phone number, and password');
       return;
     }
 
@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final response = await http.post(
         Uri.parse(ApiConfig.baseUrl + 'login.php'),
         body: {
-          'email': email,
+          'identifier': identifier,
           'password': password,
         },
       ).timeout(const Duration(seconds: 15));
@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('api_token', data['token'] ?? '');
           await prefs.setString('user_name', data['first_name'] ?? 'User');
-          
+
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
@@ -78,6 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -91,10 +93,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7351FF).withOpacity(0.1),
+                  color: primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(Icons.bolt, color: Color(0xFF7351FF), size: 30),
+                child: Icon(Icons.bolt, color: primaryColor, size: 30),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -107,23 +109,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
               ),
               const SizedBox(height: 40),
-              
-              _buildTextField('Email address', Icons.email_outlined, _emailController, false),
+
+              _buildTextField('Username, email, or phone', Icons.person_outline, _identifierController, false),
               const SizedBox(height: 20),
               _buildTextField('Password', Icons.lock_outline, _passwordController, true),
-              
+
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {},
-                  child: const Text(
+                  child: Text(
                     'Forgot password?',
-                    style: TextStyle(color: Color(0xFF7351FF), fontWeight: FontWeight.w600),
+                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -131,10 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7351FF),
+                    backgroundColor: primaryColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 5,
-                    shadowColor: const Color(0xFF7351FF).withOpacity(0.4),
+                    shadowColor: primaryColor.withOpacity(0.4),
                   ),
                   child: _isLoading
                       ? const SizedBox(
@@ -144,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
-              
+
               const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -154,9 +156,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));
                     },
-                    child: const Text(
+                    child: Text(
                       'Create one',
-                      style: TextStyle(color: Color(0xFF7351FF), fontWeight: FontWeight.bold),
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
