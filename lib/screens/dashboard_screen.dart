@@ -8,6 +8,9 @@ import 'wallet_screen.dart';
 import 'profile_screen.dart';
 import 'data_purchase_screen.dart';
 import 'airtime_purchase_screen.dart';
+import 'cable_purchase_screen.dart';
+import 'electricity_purchase_screen.dart';
+import 'exam_pin_purchase_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -441,9 +444,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                 children: [
                   _buildServiceTile(context, Icons.phone_android, 'Airtime', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen()))),
                   _buildServiceTile(context, Icons.wifi, 'Data Plans', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen()))),
-                  _buildServiceTile(context, Icons.tv, 'Cable TV', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cable TV module coming soon.')))),
-                  _buildServiceTile(context, Icons.bolt, 'Electricity', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Electricity module coming soon.')))),
-                  _buildServiceTile(context, Icons.school, 'Exam Pins', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exam Pins module coming soon.')))),
+                  _buildServiceTile(context, Icons.tv, 'Cable TV', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CablePurchaseScreen()))),
+                  _buildServiceTile(context, Icons.bolt, 'Electricity', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ElectricityPurchaseScreen()))),
+                  _buildServiceTile(context, Icons.school, 'Exam Pins', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamPinPurchaseScreen()))),
                   _buildServiceTile(context, Icons.receipt_long, 'Receipts', widget.onNavigateToHistory),
                 ],
               )
