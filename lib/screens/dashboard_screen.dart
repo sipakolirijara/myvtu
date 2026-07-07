@@ -11,6 +11,7 @@ import 'airtime_purchase_screen.dart';
 import 'cable_purchase_screen.dart';
 import 'electricity_purchase_screen.dart';
 import 'exam_pin_purchase_screen.dart';
+import 'fund_wallet_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -447,6 +448,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   _buildServiceTile(context, Icons.tv, 'Cable TV', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CablePurchaseScreen()))),
                   _buildServiceTile(context, Icons.bolt, 'Electricity', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ElectricityPurchaseScreen()))),
                   _buildServiceTile(context, Icons.school, 'Exam Pins', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamPinPurchaseScreen()))),
+                  _buildServiceTile(context, Icons.account_balance_wallet, 'Fund Wallet', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundWalletScreen()))),
                   _buildServiceTile(context, Icons.receipt_long, 'Receipts', widget.onNavigateToHistory),
                 ],
               )
