@@ -107,12 +107,16 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   bool _isLoading = true;
   bool _isCopied = false;
 
+  List<dynamic> _notificationQueue = [];
+  int _notificationIndex = 0;
+
   @override
   void initState() {
     super.initState();
     _loadBalanceVisibility(); // 2. Load persisted hidden state
     _fetchDashboardData();
     _enforceSecurityPin();
+    _checkNotifications();
   }
 
   String _formatBalance(String balance) {
@@ -189,6 +193,94 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         }
       }
     } catch (_) {}
+  }
+
+  // ── In-app notifications ──────────────────────────────────────────
+  Future<void> _checkNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('api_token') ?? '';
+      final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'get_notifications.php'), body: {'token': token});
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && (data['notifications'] as List).isNotEmpty && mounted) {
+          _notificationQueue = data['notifications'];
+          _notificationIndex = 0;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showNotificationDialog());
+        }
+      }
+    } catch (_) {}
+  }
+
+  Map<String, dynamic> _severityStyle(String severity) {
+    switch (severity) {
+      case 'critical':
+        return {'color': Colors.red, 'icon': Icons.error_outline};
+      case 'warning':
+        return {'color': Colors.orange, 'icon': Icons.warning_amber_rounded};
+      default:
+        return {'color': Colors.blue, 'icon': Icons.info_outline};
+    }
+  }
+
+  void _showNotificationDialog() {
+    if (_notificationIndex >= _notificationQueue.length) return;
+    final n = _notificationQueue[_notificationIndex];
+    final style = _severityStyle(n['severity'] ?? 'info');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(color: (style['color'] as Color).withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(style['icon'] as IconData, color: style['color'] as Color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(n['title'] ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            ),
+          ],
+        ),
+        content: Text(n['message'] ?? '', style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4)),
+        actions: [
+          if (_notificationQueue.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text('${_notificationIndex + 1} of ${_notificationQueue.length}', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+            ),
+          SizedBox(
+            width: 90,
+            child: ElevatedButton(
+              onPressed: () => _dismissCurrentNotification(n['id']),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              child: const Text('Got it', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _dismissCurrentNotification(dynamic notificationId) async {
+    Navigator.of(context).pop(); // close current dialog
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('api_token') ?? '';
+      await http.post(Uri.parse(ApiConfig.baseUrl + 'dismiss_notification.php'), body: {'token': token, 'notification_id': notificationId.toString()});
+    } catch (_) {}
+
+    _notificationIndex++;
+    if (_notificationIndex < _notificationQueue.length && mounted) {
+      _showNotificationDialog();
+    }
   }
 
   void _showMandatoryPinSetup() {
