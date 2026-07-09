@@ -12,6 +12,7 @@ import 'cable_purchase_screen.dart';
 import 'electricity_purchase_screen.dart';
 import 'exam_pin_purchase_screen.dart';
 import 'fund_wallet_screen.dart';
+import 'transfer_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -397,6 +398,59 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     );
   }
 
+  Widget _buildQuickActionsBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildQuickAction(Icons.account_balance_wallet_outlined, 'Fund Wallet', primaryColor, isDark,
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundWalletScreen()))),
+          ),
+          _buildQuickActionDivider(isDark),
+          Expanded(
+            child: _buildQuickAction(Icons.swap_horiz, 'Transfer', primaryColor, isDark,
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransferScreen()))),
+          ),
+          _buildQuickActionDivider(isDark),
+          Expanded(
+            child: _buildQuickAction(Icons.receipt_long_outlined, 'Transactions', primaryColor, isDark, widget.onNavigateToHistory),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionDivider(bool isDark) {
+    return Container(width: 1, height: 34, color: isDark ? Colors.grey.shade800 : Colors.grey.shade200);
+  }
+
+  Widget _buildQuickAction(IconData icon, String label, Color primaryColor, bool isDark, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: primaryColor, size: 20),
+            const SizedBox(height: 6),
+            Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.grey.shade300 : Colors.grey.shade700)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
@@ -523,7 +577,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
+
+              _buildQuickActionsBar(),
+
+              const SizedBox(height: 24),
               
               Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
               const SizedBox(height: 16),
@@ -540,8 +598,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   _buildServiceTile(context, Icons.tv, 'Cable TV', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CablePurchaseScreen()))),
                   _buildServiceTile(context, Icons.bolt, 'Electricity', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ElectricityPurchaseScreen()))),
                   _buildServiceTile(context, Icons.school, 'Exam Pins', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamPinPurchaseScreen()))),
-                  _buildServiceTile(context, Icons.account_balance_wallet, 'Fund Wallet', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundWalletScreen()))),
-                  _buildServiceTile(context, Icons.receipt_long, 'Receipts', widget.onNavigateToHistory),
                 ],
               )
             ],
