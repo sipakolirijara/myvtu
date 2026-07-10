@@ -17,6 +17,9 @@ class _TransferScreenState extends State<TransferScreen> {
   final _amountController = TextEditingController();
   final _pinController = TextEditingController();
 
+  bool _isLoadingStatus = true;
+  bool _isTransferEnabled = true;
+
   bool _isVerifying = false;
   bool _isSending = false;
   bool _recipientVerified = false;
@@ -27,6 +30,7 @@ class _TransferScreenState extends State<TransferScreen> {
   @override
   void initState() {
     super.initState();
+    _checkTransferStatus();
     _fetchBalance();
     _identifierController.addListener(_resetRecipient);
     _amountController.addListener(() => setState(() {}));
@@ -38,6 +42,26 @@ class _TransferScreenState extends State<TransferScreen> {
     _amountController.dispose();
     _pinController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkTransferStatus() async {
+    try {
+      final response = await http.get(Uri.parse(ApiConfig.baseUrl + 'check_transfer_status.php'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          setState(() {
+            _isTransferEnabled = data['transfer_enabled'] ?? true;
+          });
+        }
+      }
+    } catch (_) {
+      // Fail open or closed based on preference. Default to enabled to prevent blocking on bad network.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingStatus = false);
+      }
+    }
   }
 
   void _resetRecipient() {
@@ -222,6 +246,46 @@ class _TransferScreenState extends State<TransferScreen> {
     }
   }
 
+  Widget _buildDisabledState(bool isDark, Color primaryColor) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.build_circle_outlined, size: 60, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 24),
+            Text('Transfers Unavailable', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            const SizedBox(height: 12),
+            Text(
+              'Wallet transfers have been temporarily disabled for maintenance. Please check back later.', 
+              textAlign: TextAlign.center, 
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 14, height: 1.5)
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+              label: const Text('Back to Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor, 
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14)
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
@@ -244,89 +308,93 @@ class _TransferScreenState extends State<TransferScreen> {
           )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Recipient', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
-            const SizedBox(height: 6),
-            Text('Email, phone number, or username', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
+      body: _isLoadingStatus
+        ? Center(child: CircularProgressIndicator(color: primaryColor))
+        : !_isTransferEnabled
+          ? _buildDisabledState(isDark, primaryColor)
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Recipient', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
+                  const SizedBox(height: 6),
+                  Text('Email, phone number, or username', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
+                          child: TextField(
+                            controller: _identifierController,
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(Icons.person_search, color: Colors.grey.shade400, size: 20),
+                              hintText: 'e.g user@example.com',
+                              hintStyle: TextStyle(color: Colors.grey.shade500),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _isVerifying ? null : _verifyRecipient,
+                          style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          child: _isVerifying
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Verify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_recipientVerified && _recipientName != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text('✓ $_recipientName', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                  const SizedBox(height: 24),
+                  Text('Amount (₦)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
+                  const SizedBox(height: 12),
+                  Container(
                     decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
                     child: TextField(
-                      controller: _identifierController,
+                      controller: _amountController,
+                      keyboardType: TextInputType.number,
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
                       decoration: InputDecoration(
-                        prefixIcon: Icon(Icons.person_search, color: Colors.grey.shade400, size: 20),
-                        hintText: 'e.g user@example.com',
+                        prefixIcon: Icon(Icons.payments_outlined, color: Colors.grey.shade400, size: 20),
+                        hintText: 'Min ₦50',
                         hintStyle: TextStyle(color: Colors.grey.shade500),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _isVerifying ? null : _verifyRecipient,
-                    style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: _isVerifying
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Verify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 40),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: (!_isValid || _isSending) ? null : _showConfirmationModal,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        disabledBackgroundColor: primaryColor.withOpacity(0.3),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: _isSending
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Send Funds', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            if (_recipientVerified && _recipientName != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text('✓ $_recipientName', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-            const SizedBox(height: 24),
-            Text('Amount (₦)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87)),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-              child: TextField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black),
-                decoration: InputDecoration(
-                  prefixIcon: Icon(Icons.payments_outlined, color: Colors.grey.shade400, size: 20),
-                  hintText: 'Min ₦50',
-                  hintStyle: TextStyle(color: Colors.grey.shade500),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: (!_isValid || _isSending) ? null : _showConfirmationModal,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  disabledBackgroundColor: primaryColor.withOpacity(0.3),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: _isSending
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Send Funds', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
