@@ -25,7 +25,6 @@ class _AppLockScreenState extends State<AppLockScreen> {
   String _firstPin = '';
   bool _isConfirming = false;
   bool _hasError = false;
-  bool _canCheckBiometrics = false;
   bool _useBiometric = false;
 
   @override
@@ -38,16 +37,19 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   Future<void> _checkBiometricSupport() async {
     final prefs = await SharedPreferences.getInstance();
-    _useBiometric = prefs.getBool('use_biometric') ?? false;
+    // FIX 1: Wrap in setState so the icon appears immediately!
+    setState(() {
+      _useBiometric = prefs.getBool('use_biometric') ?? false;
+    });
     
     if (_useBiometric) {
       try {
-        _canCheckBiometrics = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
-        if (_canCheckBiometrics && mounted) {
+        final canCheck = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+        if (canCheck && mounted) {
           _authenticate();
         }
       } catch (e) {
-        // Fail silently
+        // Ignore
       }
     }
   }
@@ -104,10 +106,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
         if (_enteredPin == _firstPin) {
           await prefs.setString('app_lock_pin', _enteredPin);
           await prefs.setBool('app_lock_enabled', true);
-          await prefs.setBool('lock_on_resume', true);
+          await prefs.setInt('lock_setting', 2); // Default to "Always Ask"
           
           final hardwareSupport = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
-          
           if (hardwareSupport && mounted) {
             _showBiometricPrompt(prefs);
           } else {
@@ -209,64 +210,50 @@ class _AppLockScreenState extends State<AppLockScreen> {
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    String titleText = 'Enter App PIN';
-    if (widget.isSetup) {
-      titleText = _isConfirming ? 'Confirm 6-Digit PIN' : 'Create 6-Digit App PIN';
-    }
+    String titleText = widget.isSetup ? (_isConfirming ? 'Confirm 6-Digit PIN' : 'Create 6-Digit App PIN') : 'Enter App PIN';
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+      appBar: widget.isSetup
+          ? AppBar(elevation: 0, backgroundColor: Colors.transparent, leading: IconButton(icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black), onPressed: () => Navigator.pop(context)))
+          : null,
       body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 60),
-            Icon(Icons.lock_outline, size: 50, color: primaryColor),
-            const SizedBox(height: 16),
-            Text(
-              titleText,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
-            ),
-            if (!widget.isSetup && _useBiometric)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: TextButton.icon(
-                  onPressed: _authenticate,
-                  icon: Icon(Icons.fingerprint, color: primaryColor),
-                  label: Text('Use Fingerprint', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            const SizedBox(height: 40),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(6, (index) {
-                bool isFilled = index < _enteredPin.length;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isFilled ? primaryColor : Colors.transparent,
-                    border: Border.all(color: _hasError ? Colors.red : (isFilled ? primaryColor : Colors.grey), width: 2),
+            // FIX 2: Group top elements and expand them so Numpad is pushed down perfectly
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock_outline, size: 50, color: primaryColor),
+                  const SizedBox(height: 16),
+                  Text(titleText, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(6, (index) {
+                      bool isFilled = index < _enteredPin.length;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        width: 16, height: 16,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: isFilled ? primaryColor : Colors.transparent, border: Border.all(color: _hasError ? Colors.red : (isFilled ? primaryColor : Colors.grey), width: 2)),
+                      );
+                    }),
                   ),
-                );
-              }),
-            ),
-            if (_hasError && !widget.isSetup)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
-                child: Text('Incorrect PIN', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  if (_hasError && !widget.isSetup)
+                    const Padding(padding: EdgeInsets.only(top: 16), child: Text('Incorrect PIN', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+                ],
               ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            ),
+            
+            // FIX 3: Numpad given fixed proportions so it doesn't stretch or bunch up
+            Container(
+              padding: const EdgeInsets.only(bottom: 40, left: 40, right: 40),
               child: GridView.count(
                 shrinkWrap: true,
                 crossAxisCount: 3,
-                childAspectRatio: 1.2,
+                childAspectRatio: 1.4, // Prevents tall ugly buttons
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 physics: const NeverScrollableScrollPhysics(),
@@ -289,12 +276,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     return InkWell(
       onTap: () => _onKeyPressed(num),
       borderRadius: BorderRadius.circular(40),
-      child: Center(
-        child: Text(
-          num,
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
-        ),
-      ),
+      child: Center(child: Text(num, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87))),
     );
   }
 
@@ -302,9 +284,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     return InkWell(
       onTap: _onBackspace,
       borderRadius: BorderRadius.circular(40),
-      child: Center(
-        child: Icon(Icons.backspace_outlined, size: 28, color: Theme.of(context).primaryColor),
-      ),
+      child: Center(child: Icon(Icons.backspace_outlined, size: 28, color: Theme.of(context).primaryColor)),
     );
   }
 
@@ -313,9 +293,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
       return InkWell(
         onTap: _authenticate,
         borderRadius: BorderRadius.circular(40),
-        child: Center(
-          child: Icon(Icons.fingerprint, size: 32, color: Theme.of(context).primaryColor),
-        ),
+        child: Center(child: Icon(Icons.fingerprint, size: 36, color: Theme.of(context).primaryColor)),
       );
     }
     return const SizedBox.shrink();

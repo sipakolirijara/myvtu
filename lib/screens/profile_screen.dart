@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:local_auth/local_auth.dart';
 import 'login_screen.dart';
-import 'app_lock_screen.dart';
+import 'security_settings_screen.dart';
 import '../main.dart'; 
 
 class ProfileScreen extends StatefulWidget {
@@ -19,34 +18,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
 
-  bool _appLockEnabled = false;
-  bool _lockOnResume = true;
-  bool _useBiometric = false;
-  bool _biometricAvailable = false;
-
   @override
   void initState() {
     super.initState();
     _fetchProfile();
-    _loadAppLockSettings();
-    _checkBiometricAvailability();
-  }
-
-  Future<void> _checkBiometricAvailability() async {
-    final LocalAuthentication auth = LocalAuthentication();
-    final canCheck = await auth.canCheckBiometrics || await auth.isDeviceSupported();
-    if (mounted) setState(() => _biometricAvailable = canCheck);
-  }
-
-  Future<void> _loadAppLockSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _appLockEnabled = prefs.getBool('app_lock_enabled') ?? false;
-        _lockOnResume = prefs.getBool('lock_on_resume') ?? true;
-        _useBiometric = prefs.getBool('use_biometric') ?? false;
-      });
-    }
   }
 
   Future<void> _fetchProfile() async {
@@ -63,141 +38,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // RESTORED: Transaction Payment PIN logic
+  void _showSetPinDialog(bool requireCurrent) {
+    final currentPinController = TextEditingController();
+    final newPinController = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        title: Text(requireCurrent ? 'Change Payment PIN' : 'Set Payment PIN', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (requireCurrent) ...[
+              const Text('Current PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              TextField(controller: currentPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, style: const TextStyle(letterSpacing: 8.0)),
+              const SizedBox(height: 12),
+            ],
+            const Text('New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            TextField(controller: newPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, style: const TextStyle(letterSpacing: 8.0)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () async {
+              if (newPinController.text.length == 4) {
+                Navigator.pop(context);
+                await _setPin(newPinController.text, currentPinController.text);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN must be 4 digits')));
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor),
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setPin(String newPin, String currentPin) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('api_token') ?? '';
+    final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'set_pin.php'), body: {'token': token, 'new_pin': newPin, 'current_pin': currentPin});
+    final data = json.decode(response.body);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: data['success'] ? Colors.green : Colors.red));
+    if (data['success']) _fetchProfile(); 
+  }
+
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('api_token');
     if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
   }
 
-  Future<void> _toggleAppLock(bool enable) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (enable) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AppLockScreen(
-            isSetup: true,
-            onSuccess: () {
-              _loadAppLockSettings(); 
-            },
-          ),
-        ),
-      );
-    } else {
-      await prefs.setBool('app_lock_enabled', false);
-      await prefs.remove('app_lock_pin');
-      await prefs.setBool('use_biometric', false);
-      _loadAppLockSettings();
-    }
-  }
-
-  Future<void> _toggleLockOnResume(bool enable) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('lock_on_resume', enable);
-    setState(() => _lockOnResume = enable);
-  }
-
-  Future<void> _toggleBiometric(bool enable) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('use_biometric', enable);
-    setState(() => _useBiometric = enable);
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) return Scaffold(body: Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor)));
+    if (_profile == null) return const Scaffold(body: Center(child: Text('Error loading profile')));
+
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Profile & Security', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 18)),
-      ),
-      body: _isLoading 
-        ? Center(child: CircularProgressIndicator(color: primaryColor))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 80, height: 80,
-                        decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
-                        child: Center(child: Text(_profile!['first_name'][0].toUpperCase(), style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: primaryColor))),
-                      ),
-                      const SizedBox(height: 16),
-                      Text('${_profile!['first_name']} ${_profile!['last_name']}', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-                      Text(_profile!['email'], style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                Text('APP SECURITY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
-                const SizedBox(height: 12),
-                
-                Container(
-                  decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
-                  child: Column(
-                    children: [
-                      SwitchListTile(
-                        activeColor: primaryColor,
-                        title: Text('App Lock PIN', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-                        subtitle: Text('Require a 6-digit PIN when opening app', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                        value: _appLockEnabled,
-                        onChanged: _toggleAppLock,
-                        secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.phonelink_lock, color: primaryColor)),
-                      ),
-                      if (_appLockEnabled) ...[
-                        const Divider(height: 1),
-                        SwitchListTile(
-                          activeColor: primaryColor,
-                          title: Text('Lock on App Exit', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-                          subtitle: Text('Ask PIN every single time app is minimized', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                          value: _lockOnResume,
-                          onChanged: _toggleLockOnResume,
-                          secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.timer_outlined, color: primaryColor)),
-                        ),
-                        if (_biometricAvailable) ...[
-                          const Divider(height: 1),
-                          SwitchListTile(
-                            activeColor: primaryColor,
-                            title: Text('Fingerprint Unlock', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-                            subtitle: Text('Use device biometrics to unlock', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                            value: _useBiometric,
-                            onChanged: _toggleBiometric,
-                            secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.fingerprint, color: primaryColor)),
-                          ),
-                        ]
-                      ]
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                Text('ACCOUNT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
-                const SizedBox(height: 12),
-                
-                _buildProfileMenu(Icons.shield_outlined, 'Change Password', 'Update your login password', null, primaryColor, isDark),
-                _buildProfileMenu(Icons.logout, 'Log Out', 'Sign out of your account', _logout, primaryColor, isDark, isDestructive: true),
-              ],
+      appBar: AppBar(title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)), automaticallyImplyLeading: false),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            CircleAvatar(radius: 40, backgroundColor: primaryColor, child: const Icon(Icons.person, size: 40, color: Colors.white)),
+            const SizedBox(height: 16),
+            Text('${_profile!['first_name']} ${_profile!['last_name']}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text('${_profile!['email']}', style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Text('${_profile!['role']}', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12))),
+            const SizedBox(height: 40),
+            
+            // RESTORED: GLOBAL DARK MODE TOGGLE
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
+              child: SwitchListTile(
+                title: const Text('Dark Mode Display', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.dark_mode, color: primaryColor)),
+                value: isDark,
+                activeColor: primaryColor,
+                onChanged: (bool value) async {
+                  themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('is_dark_mode', value);
+                },
+              ),
             ),
-          ),
+
+            // ADDED: New Security Settings Entry
+            _buildProfileMenu(Icons.security, 'App Security', 'Auto-logout & Biometrics', () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SecuritySettingsScreen()));
+            }, primaryColor, isDark),
+
+            _buildProfileMenu(Icons.phone, 'Phone Number', _profile!['phone'], null, primaryColor, isDark),
+            _buildProfileMenu(Icons.lock, _profile!['has_pin'] ? 'Change Payment PIN' : 'Set Payment PIN', _profile!['has_pin'] ? '****' : 'Not Set', () => _showSetPinDialog(_profile!['has_pin']), primaryColor, isDark),
+            _buildProfileMenu(Icons.logout, 'Log Out', '', _logout, primaryColor, isDark, isDestructive: true),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildProfileMenu(IconData icon, String title, String subtitle, VoidCallback? onTap, Color primaryColor, bool isDark, {bool isDestructive = false}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
       child: ListTile(
         onTap: onTap,
         leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: isDestructive ? Colors.red.withOpacity(0.1) : primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: isDestructive ? Colors.red : primaryColor)),
         title: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: isDestructive ? Colors.red : (isDark ? Colors.white : Colors.black87))),
-        subtitle: subtitle.isNotEmpty ? Text(subtitle, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)) : null,
-        trailing: isDestructive ? null : Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+        subtitle: subtitle.isNotEmpty ? Text(subtitle, style: const TextStyle(color: Colors.grey)) : null,
+        trailing: onTap != null ? const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey) : null,
       ),
     );
   }
