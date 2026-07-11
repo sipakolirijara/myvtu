@@ -104,10 +104,8 @@ class _AppLockScreenState extends State<AppLockScreen> {
         if (_enteredPin == _firstPin) {
           await prefs.setString('app_lock_pin', _enteredPin);
           await prefs.setBool('app_lock_enabled', true);
-          // DEFAULT FLAG: Always ask for PIN by default when leaving/resuming app
           await prefs.setBool('lock_on_resume', true);
           
-          // Check if hardware biometrics are present before popping the question
           final hardwareSupport = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
           
           if (hardwareSupport && mounted) {
@@ -193,7 +191,6 @@ class _AppLockScreenState extends State<AppLockScreen> {
     if (widget.onSuccess != null) {
       widget.onSuccess!();
     } else {
-      // Force launch straight to Dashboard view right after first login setup complete
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
     }
   }
