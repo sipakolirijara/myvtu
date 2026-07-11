@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/splash_screen.dart';
+import 'screens/app_lock_screen.dart';
 
 // Global notifiers so the app updates instantly without a restart
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<Color> primaryColorNotifier = ValueNotifier(const Color(0xFF7351FF));
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,13 +22,60 @@ void main() async {
   final cachedColorHex = prefs.getString('primary_color') ?? '#7351FF';
   primaryColorNotifier.value = Color(int.parse(cachedColorHex.replaceAll('#', '0xFF')));
   
-  // We do NOT fetch network data here anymore. 
-  // We instantly run the app and let the SplashScreen handle the loading!
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+// WidgetsBindingObserver listens to the app going to the background/foreground
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  bool _isLockScreenShowing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    // If the app is brought back from the background
+    if (state == AppLifecycleState.resumed) {
+      final prefs = await SharedPreferences.getInstance();
+      final isLocked = prefs.getBool('app_lock_enabled') ?? false;
+      final lockOnResume = prefs.getBool('lock_on_resume') ?? true;
+      final token = prefs.getString('api_token');
+
+      // Only lock if enabled, not already showing, and user is actually logged in
+      if (isLocked && lockOnResume && !_isLockScreenShowing && token != null && token.isNotEmpty) {
+        _isLockScreenShowing = true;
+        await navigatorKey.currentState?.push(
+          PageRouteBuilder(
+            opaque: false, // Makes it behave like an overlay
+            pageBuilder: (context, _, __) => AppLockScreen(
+              isFromResume: true,
+              onSuccess: () {
+                _isLockScreenShowing = false;
+                navigatorKey.currentState?.pop(); // Remove the lock screen overlay
+              },
+            ),
+          ),
+        );
+        _isLockScreenShowing = false;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +86,7 @@ class MyApp extends StatelessWidget {
           valueListenable: themeNotifier,
           builder: (_, ThemeMode currentMode, __) {
             return MaterialApp(
+              navigatorKey: navigatorKey, // Allows global navigation interception
               title: 'Kainuwa VTU',
               debugShowCheckedModeBanner: false,
               themeMode: currentMode,
@@ -55,7 +105,6 @@ class MyApp extends StatelessWidget {
                 appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, iconTheme: IconThemeData(color: Colors.white)),
                 cardColor: const Color(0xFF1E1E1E),
               ),
-              // CRITICAL FIX: The app must start at the Splash Screen
               home: const SplashScreen(),
             );
           },
