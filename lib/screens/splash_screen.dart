@@ -7,6 +7,7 @@ import '../main.dart';
 import 'login_screen.dart';
 import 'dashboard_screen.dart';
 import 'onboarding_screen.dart';
+import 'app_lock_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -42,7 +43,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       _appName = prefs.getString('app_name') ?? 'Kainuwa VTU';
     });
 
-    // 1. Fetch live settings from backend to sync instantly
     try {
       final response = await http.get(Uri.parse(ApiConfig.baseUrl + 'get_settings.php')).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
@@ -54,30 +54,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           await prefs.setString('app_name', liveName);
           await prefs.setString('primary_color', liveColorHex);
           
-          // Instantly update the app's global theme color
           primaryColorNotifier.value = Color(int.parse(liveColorHex.replaceAll('#', '0xFF')));
           
-          if (mounted) {
-            setState(() => _appName = liveName);
-          }
+          if (mounted) setState(() => _appName = liveName);
         }
       }
-    } catch (_) {
-      // Fail silently and use cached data if network is unavailable
-    }
+    } catch (_) {}
 
-    // Ensure the splash screen shows for at least 2 seconds for smooth UX
     await Future.delayed(const Duration(seconds: 1));
 
-    // 2. Check Auth Status and Navigate
     if (!mounted) return;
     
     final token = prefs.getString('api_token');
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+    final isLocked = prefs.getBool('app_lock_enabled') ?? false;
     
     if (token != null && token.isNotEmpty) {
-      // TODO: Phase 3 (App Lock) goes here later. For now, go to Dashboard.
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+      // FIX: If app lock is enabled, route them to the UNLOCK screen first!
+      if (isLocked) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AppLockScreen(isSetup: false)));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+      }
     } else {
       if (hasSeenOnboarding) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
@@ -89,7 +87,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    // Scaffold uses the dynamically updated primary color
     return Scaffold(
       backgroundColor: primaryColorNotifier.value,
       body: Center(
@@ -98,7 +95,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // White circular background for the app icon
               Container(
                 width: 120,
                 height: 120,
@@ -117,7 +113,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 ),
               ),
               const SizedBox(height: 24),
-              // Dynamic Website Name
               Text(
                 _appName,
                 style: const TextStyle(

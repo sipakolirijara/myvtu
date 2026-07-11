@@ -44,9 +44,17 @@ class _LoginScreenState extends State<LoginScreen> {
         final data = json.decode(response.body);
         if (data['success'] == true) {
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('api_token', data['api_token'] ?? '');
+          
+          // FIX: Look for all possible token keys to ensure it saves correctly!
+          final String token = data['token'] ?? data['api_token'] ?? data['api_key'] ?? '';
+          await prefs.setString('api_token', token);
           
           if (!mounted) return;
+
+          if (token.isEmpty) {
+            _showError('Login succeeded but token was missing. Please contact admin.');
+            return;
+          }
 
           // ENFORCE MANDATORY APP LOCK SETUP IMMEDIATELY AFTER LOGIN
           Navigator.pushReplacement(
