@@ -25,7 +25,6 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       _lockSetting = prefs.getInt('lock_setting') ?? 2;
       _useBiometric = prefs.getBool('use_biometric') ?? false;
       
-      // If app lock was completely disabled previously, set it to "Password-Free" (0)
       if (!(prefs.getBool('app_lock_enabled') ?? false)) {
         _lockSetting = 0;
       }
@@ -35,11 +34,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   Future<void> _updateLockSetting(int value) async {
     final prefs = await SharedPreferences.getInstance();
     
-    // If they want to lock (1 or 2), verify they actually have a PIN set
     if (value == 1 || value == 2) {
       final hasPin = prefs.getString('app_lock_pin') != null;
       if (!hasPin) {
-        // Route to setup first
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => AppLockScreen(
             isSetup: true,
@@ -59,7 +56,6 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     setState(() => _lockSetting = value);
     await prefs.setInt('lock_setting', value);
     
-    // Keep legacy flag accurate for background checker
     if (value == 0) {
       await prefs.setBool('app_lock_enabled', false);
     } else {
@@ -76,8 +72,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // OPay uses a teal/green for the active state
-    const activeColor = Color(0xFF00C853); 
+    // FIX: Inherit the dynamic primary color from the website settings!
+    final activeColor = Theme.of(context).primaryColor;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF4F6F9),
