@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
 import 'dashboard_screen.dart';
@@ -37,7 +38,6 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   Future<void> _checkBiometricSupport() async {
     final prefs = await SharedPreferences.getInstance();
-    // FIX 1: Wrap in setState so the icon appears immediately!
     setState(() {
       _useBiometric = prefs.getBool('use_biometric') ?? false;
     });
@@ -49,7 +49,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
           _authenticate();
         }
       } catch (e) {
-        // Ignore
+        // Do not block UI if checks fail
       }
     }
   }
@@ -61,13 +61,32 @@ class _AppLockScreenState extends State<AppLockScreen> {
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: true,
+          useErrorDialogs: true,
         ),
       );
       if (authenticated) {
         _unlockSuccess();
       }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fingerprint Error: ${e.message ?? 'Unknown error'}'), 
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          )
+        );
+      }
     } catch (e) {
-      // Ignore
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fingerprint hardware not available or not configured.'), 
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          )
+        );
+      }
     }
   }
 
@@ -220,7 +239,6 @@ class _AppLockScreenState extends State<AppLockScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // FIX 2: Group top elements and expand them so Numpad is pushed down perfectly
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -247,13 +265,12 @@ class _AppLockScreenState extends State<AppLockScreen> {
               ),
             ),
             
-            // FIX 3: Numpad given fixed proportions so it doesn't stretch or bunch up
             Container(
               padding: const EdgeInsets.only(bottom: 40, left: 40, right: 40),
               child: GridView.count(
                 shrinkWrap: true,
                 crossAxisCount: 3,
-                childAspectRatio: 1.4, // Prevents tall ugly buttons
+                childAspectRatio: 1.4,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 physics: const NeverScrollableScrollPhysics(),
