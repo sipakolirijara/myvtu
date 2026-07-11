@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_screen.dart';
 import 'register_screen.dart';
+import 'app_lock_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -43,90 +44,66 @@ class _LoginScreenState extends State<LoginScreen> {
         final data = json.decode(response.body);
         if (data['success'] == true) {
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('api_token', data['token'] ?? '');
-          await prefs.setString('user_name', data['first_name'] ?? 'User');
-
+          await prefs.setString('api_token', data['api_token'] ?? '');
+          
           if (!mounted) return;
+
+          // ENFORCE MANDATORY APP LOCK SETUP IMMEDIATELY AFTER LOGIN
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            MaterialPageRoute(
+              builder: (_) => const AppLockScreen(
+                isSetup: true, // Force PIN creation flow
+              ),
+            ),
           );
         } else {
-          _showError(data['message'] ?? 'Invalid credentials');
+          _showError(data['message'] ?? 'Login failed');
         }
       } else {
-        _showError('Server error: ${response.statusCode}');
+        _showError('Server error, please try again later');
       }
-    } catch (e) {
-      _showError('Network error. Please check your connection.');
+    } catch (_) {
+      _showError('Network error, please check your internet connection');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+          padding: const EdgeInsets.all(30.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 40),
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(Icons.bolt, color: primaryColor, size: 30),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Welcome back.',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF111827)),
+              const SizedBox(height: 50),
+              Text(
+                'Welcome Back',
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF111827)),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Sign in to your wallet and stay connected.',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              Text(
+                'Sign in to continue your digital transactions',
+                style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 40),
-
-              _buildTextField('Username, email, or phone', Icons.person_outline, _identifierController, false),
+              _buildTextField('Username, Email, or Phone', Icons.person_outline, _identifierController, false),
               const SizedBox(height: 20),
               _buildTextField('Password', Icons.lock_outline, _passwordController, true),
-
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    'Forgot password?',
-                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
+              const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -135,23 +112,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 5,
-                    shadowColor: primaryColor.withOpacity(0.4),
+                    elevation: 0,
                   ),
                   child: _isLoading
-                      ? const SizedBox(
-                          height: 24, width: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
-
               const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Don't have an account? ", style: TextStyle(color: Color(0xFF6B7280))),
+                  Text("Don't have an account? ", style: TextStyle(color: Colors.grey.shade500)),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));

@@ -19,8 +19,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
 
-  // Local App Lock States
   bool _appLockEnabled = false;
+  bool _lockOnResume = true;
   bool _useBiometric = false;
   bool _biometricAvailable = false;
 
@@ -43,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) {
       setState(() {
         _appLockEnabled = prefs.getBool('app_lock_enabled') ?? false;
+        _lockOnResume = prefs.getBool('lock_on_resume') ?? true;
         _useBiometric = prefs.getBool('use_biometric') ?? false;
       });
     }
@@ -77,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           builder: (_) => AppLockScreen(
             isSetup: true,
             onSuccess: () {
-              _loadAppLockSettings(); // Refresh UI after setup
+              _loadAppLockSettings(); 
             },
           ),
         ),
@@ -88,6 +89,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await prefs.setBool('use_biometric', false);
       _loadAppLockSettings();
     }
+  }
+
+  Future<void> _toggleLockOnResume(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('lock_on_resume', enable);
+    setState(() => _lockOnResume = enable);
   }
 
   Future<void> _toggleBiometric(bool enable) async {
@@ -112,7 +119,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Profile Header
                 Center(
                   child: Column(
                     children: [
@@ -132,7 +138,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text('APP SECURITY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
                 const SizedBox(height: 12),
                 
-                // App Lock Feature (Local)
                 Container(
                   decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
                   child: Column(
@@ -145,16 +150,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onChanged: _toggleAppLock,
                         secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.phonelink_lock, color: primaryColor)),
                       ),
-                      if (_appLockEnabled && _biometricAvailable) ...[
+                      if (_appLockEnabled) ...[
                         const Divider(height: 1),
                         SwitchListTile(
                           activeColor: primaryColor,
-                          title: Text('Fingerprint Unlock', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-                          subtitle: Text('Use device biometrics to unlock', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                          value: _useBiometric,
-                          onChanged: _toggleBiometric,
-                          secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.fingerprint, color: primaryColor)),
+                          title: Text('Lock on App Exit', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+                          subtitle: Text('Ask PIN every single time app is minimized', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                          value: _lockOnResume,
+                          onChanged: _toggleLockOnResume,
+                          secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.timer_outlined, color: primaryColor)),
                         ),
+                        if (_biometricAvailable) ...[
+                          const Divider(height: 1),
+                          SwitchListTile(
+                            activeColor: primaryColor,
+                            title: Text('Fingerprint Unlock', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+                            subtitle: Text('Use device biometrics to unlock', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                            value: _useBiometric,
+                            onChanged: _toggleBiometric,
+                            secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.fingerprint, color: primaryColor)),
+                          ),
+                        ]
                       ]
                     ],
                   ),
@@ -164,7 +180,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text('ACCOUNT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
                 const SizedBox(height: 12),
                 
-                // Backend Settings
                 _buildProfileMenu(Icons.shield_outlined, 'Change Password', 'Update your login password', null, primaryColor, isDark),
                 _buildProfileMenu(Icons.logout, 'Log Out', 'Sign out of your account', _logout, primaryColor, isDark, isDestructive: true),
               ],
