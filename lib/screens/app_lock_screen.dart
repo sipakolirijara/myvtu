@@ -27,6 +27,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
   bool _isConfirming = false;
   bool _hasError = false;
   bool _useBiometric = false;
+  bool _canCheckBiometrics = false; // Add this to track hardware support
 
   @override
   void initState() {
@@ -38,40 +39,52 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   Future<void> _checkBiometricSupport() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _useBiometric = prefs.getBool('use_biometric') ?? false;
-    });
     
-    if (_useBiometric) {
-      try {
-        final canCheck = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
-        if (canCheck && mounted) {
-          _authenticate();
-        }
-      } catch (e) {
-        // Do not block UI if checks fail
+    // 1. Check if the user *wants* to use biometrics
+    final wantsBiometric = prefs.getBool('use_biometric') ?? false;
+
+    // 2. Check if the device *can* use biometrics (hardware + enrolled)
+    bool canCheck = false;
+    try {
+      canCheck = await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
+    } catch (e) {
+      // Ignore exceptions from local_auth during checks
+    }
+
+    // 3. Update the UI *immediately*
+    if (mounted) {
+      setState(() {
+        _canCheckBiometrics = canCheck;
+        _useBiometric = wantsBiometric && canCheck; // Only true if both are true
+      });
+      
+      // 4. If everything is good, prompt the user immediately
+      if (_useBiometric) {
+         _authenticate();
       }
     }
   }
 
   Future<void> _authenticate() async {
+    if (!_canCheckBiometrics) return; // Don't try if unsupported
+
     try {
       final authenticated = await _auth.authenticate(
-        localizedReason: 'Scan your fingerprint to unlock the app',
+        localizedReason: 'Scan your fingerprint to unlock',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: true,
           useErrorDialogs: true,
         ),
       );
-      if (authenticated) {
+      if (authenticated && mounted) {
         _unlockSuccess();
       }
     } on PlatformException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fingerprint Error: ${e.message ?? 'Unknown error'}'), 
+            content: Text('Biometric Error: ${e.message ?? 'Unknown error'}'), 
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           )
@@ -81,7 +94,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Fingerprint hardware not available or not configured.'), 
+            content: Text('Biometric authentication failed.'), 
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           )
@@ -127,7 +140,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
           await prefs.setBool('app_lock_enabled', true);
           await prefs.setInt('lock_setting', 2); // Default to "Always Ask"
           
-          final hardwareSupport = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+          final hardwareSupport = await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
           if (hardwareSupport && mounted) {
             _showBiometricPrompt(prefs);
           } else {
@@ -306,7 +319,8 @@ class _AppLockScreenState extends State<AppLockScreen> {
   }
 
   Widget _buildBiometricOrEmpty() {
-    if (!widget.isSetup && _useBiometric) {
+    // FIX 5: Use _canCheckBiometrics and _useBiometric properly
+    if (!widget.isSetup && _useBiometric && _canCheckBiometrics) {
       return InkWell(
         onTap: _authenticate,
         borderRadius: BorderRadius.circular(40),
