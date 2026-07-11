@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
 import 'dashboard_screen.dart';
+import '../main.dart'; // Imports isAppLockActive
 
 class AppLockScreen extends StatefulWidget {
   final bool isSetup;
@@ -27,47 +27,47 @@ class _AppLockScreenState extends State<AppLockScreen> {
   bool _isConfirming = false;
   bool _hasError = false;
   bool _useBiometric = false;
-  bool _canCheckBiometrics = false; // Add this to track hardware support
+  bool _canCheckBiometrics = false;
 
   @override
   void initState() {
     super.initState();
+    isAppLockActive = true; // Tell main.dart we are active
     if (!widget.isSetup) {
-      _checkBiometricSupport();
+      _initializeAndPrompt();
     }
   }
 
-  Future<void> _checkBiometricSupport() async {
+  @override
+  void dispose() {
+    isAppLockActive = false; // Tell main.dart we are closed
+    super.dispose();
+  }
+
+  Future<void> _initializeAndPrompt() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // 1. Check if the user *wants* to use biometrics
-    final wantsBiometric = prefs.getBool('use_biometric') ?? false;
+    // Update UI instantly so the fingerprint icon shows up before typing
+    setState(() {
+      _useBiometric = prefs.getBool('use_biometric') ?? false;
+    });
 
-    // 2. Check if the device *can* use biometrics (hardware + enrolled)
-    bool canCheck = false;
-    try {
-      canCheck = await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
-    } catch (e) {
-      // Ignore exceptions from local_auth during checks
-    }
-
-    // 3. Update the UI *immediately*
-    if (mounted) {
-      setState(() {
-        _canCheckBiometrics = canCheck;
-        _useBiometric = wantsBiometric && canCheck; // Only true if both are true
-      });
-      
-      // 4. If everything is good, prompt the user immediately
-      if (_useBiometric) {
-         _authenticate();
+    if (_useBiometric) {
+      try {
+        _canCheckBiometrics = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+        if (_canCheckBiometrics && mounted) {
+          // FIX: Add a half-second delay so the app fully renders and settles 
+          // before calling the native Android scanner overlay.
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) _authenticate(isAutoPrompt: true);
+        }
+      } catch (e) {
+        // Ignore silent startup errors
       }
     }
   }
 
-  Future<void> _authenticate() async {
-    if (!_canCheckBiometrics) return; // Don't try if unsupported
-
+  Future<void> _authenticate({bool isAutoPrompt = false}) async {
     try {
       final authenticated = await _auth.authenticate(
         localizedReason: 'Scan your fingerprint to unlock',
@@ -80,21 +80,13 @@ class _AppLockScreenState extends State<AppLockScreen> {
       if (authenticated && mounted) {
         _unlockSuccess();
       }
-    } on PlatformException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Biometric Error: ${e.message ?? 'Unknown error'}'), 
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          )
-        );
-      }
     } catch (e) {
-      if (mounted) {
+      // FIX: Only show the red error if the user manually clicked the button.
+      // If it auto-prompted and failed, fail silently so it doesn't spam errors.
+      if (!isAutoPrompt && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Biometric authentication failed.'), 
+            content: Text('Fingerprint authentication failed or cancelled.'), 
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           )
@@ -138,9 +130,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
         if (_enteredPin == _firstPin) {
           await prefs.setString('app_lock_pin', _enteredPin);
           await prefs.setBool('app_lock_enabled', true);
-          await prefs.setInt('lock_setting', 2); // Default to "Always Ask"
+          await prefs.setInt('lock_setting', 2); // Default "Always Ask"
           
-          final hardwareSupport = await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
+          final hardwareSupport = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
           if (hardwareSupport && mounted) {
             _showBiometricPrompt(prefs);
           } else {
@@ -230,11 +222,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   void _unlockSuccess() {
     if (widget.isFromResume) {
-      Navigator.pop(context); 
+      if (mounted) Navigator.pop(context); 
     } else if (widget.onSuccess != null) {
       widget.onSuccess!(); 
     } else {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+      if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
     }
   }
 
@@ -319,10 +311,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
   }
 
   Widget _buildBiometricOrEmpty() {
-    // FIX 5: Use _canCheckBiometrics and _useBiometric properly
-    if (!widget.isSetup && _useBiometric && _canCheckBiometrics) {
+    if (!widget.isSetup && _useBiometric) {
       return InkWell(
-        onTap: _authenticate,
+        onTap: () => _authenticate(isAutoPrompt: false),
         borderRadius: BorderRadius.circular(40),
         child: Center(child: Icon(Icons.fingerprint, size: 36, color: Theme.of(context).primaryColor)),
       );
