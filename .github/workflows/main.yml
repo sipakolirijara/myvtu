@@ -67,10 +67,15 @@ jobs:
           }
           INNER_EOF
 
-      - name: Inject Permanent Signing Config
+      - name: Inject Permanent Signing Config (Handles both .gradle and .kts)
         run: |
-          sed -i '/buildTypes {/i \    signingConfigs {\n        release {\n            storeFile file("../../keystore/kainuwa.jks")\n            storePassword "kainuwa123"\n            keyAlias "kainuwa"\n            keyPassword "kainuwa123"\n        }\n    }' android/app/build.gradle
-          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' android/app/build.gradle
+          if [ -f "android/app/build.gradle.kts" ]; then
+            sed -i '/buildTypes {/i \    signingConfigs {\n        create("release") {\n            storeFile = file("../../keystore/kainuwa.jks")\n            storePassword = "kainuwa123"\n            keyAlias = "kainuwa"\n            keyPassword = "kainuwa123"\n        }\n    }' android/app/build.gradle.kts
+            sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = signingConfigs.getByName("release")/g' android/app/build.gradle.kts
+          else
+            sed -i '/buildTypes {/i \    signingConfigs {\n        release {\n            storeFile file("../../keystore/kainuwa.jks")\n            storePassword "kainuwa123"\n            keyAlias "kainuwa"\n            keyPassword "kainuwa123"\n        }\n    }' android/app/build.gradle
+            sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' android/app/build.gradle
+          fi
 
       - name: Build Universal APK
         run: flutter build apk --release
