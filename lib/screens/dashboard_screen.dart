@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'wallet_screen.dart';
 import 'profile_screen.dart';
 import 'data_purchase_screen.dart';
+import 'all_services_screen.dart';
 import 'airtime_purchase_screen.dart';
 import 'cable_purchase_screen.dart';
 import 'electricity_purchase_screen.dart';
@@ -31,7 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onNavigateToProfile: () => setState(() => _currentIndex = 3),
       onNavigateToHistory: () => setState(() => _currentIndex = 2),
     ),
-    const ServicesPlaceholderView(),
+    const AllServicesScreen(),
     const WalletScreen(),
     const ProfileScreen(),
   ];
