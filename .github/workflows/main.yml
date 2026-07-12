@@ -2,6 +2,11 @@ name: Android CI
 on:
   push:
     branches: [ "main", "master" ]
+
+# Grant the cloud runner permission to push the keystore back to your repo
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,6 +19,18 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Generate and Save Keystore (Cloud Only)
+        run: |
+          if [ ! -f keystore/kainuwa.jks ]; then
+            mkdir -p keystore
+            keytool -genkey -v -keystore keystore/kainuwa.jks -keyalg RSA -keysize 2048 -validity 10000 -alias kainuwa -dname "CN=Kainuwa Digital Africa, OU=Mobile Dev, O=Kainuwa, L=Nigeria, S=State, C=NG" -storepass "kainuwa123" -keypass "kainuwa123"
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add keystore/kainuwa.jks
+            git commit -m "Auto-generate permanent app keystore"
+            git push
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -49,6 +66,11 @@ jobs:
           class MainActivity: FlutterFragmentActivity() {
           }
           INNER_EOF
+
+      - name: Inject Permanent Signing Config
+        run: |
+          sed -i '/buildTypes {/i \    signingConfigs {\n        release {\n            storeFile file("../../keystore/kainuwa.jks")\n            storePassword "kainuwa123"\n            keyAlias "kainuwa"\n            keyPassword "kainuwa123"\n        }\n    }' android/app/build.gradle
+          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' android/app/build.gradle
 
       - name: Build Universal APK
         run: flutter build apk --release

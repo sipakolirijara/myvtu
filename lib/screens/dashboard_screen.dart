@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 import 'wallet_screen.dart';
 import 'profile_screen.dart';
 import 'data_purchase_screen.dart';
@@ -35,7 +36,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const ProfileScreen(),
   ];
 
-  // 1. Double tap back button to exit
   Future<bool> onWillPop() {
     DateTime now = DateTime.now();
     if (currentBackPressTime == null || now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
@@ -46,6 +46,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Future.value(true);
   }
 
+  // DYNAMIC CUSTOMER SUPPORT SHEET
+  void _showSupportSheet() {
+    final primaryColor = Theme.of(context).primaryColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 24, bottom: 20, left: 20, right: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Customer Support', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+              const SizedBox(height: 8),
+              Text('How would you like us to help you today?', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+              const SizedBox(height: 24),
+              
+              FutureBuilder<http.Response>(
+                future: http.get(Uri.parse(ApiConfig.baseUrl + 'get_support.php')),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Padding(padding: const EdgeInsets.all(30.0), child: CircularProgressIndicator(color: primaryColor));
+                  }
+                  
+                  if (!snapshot.hasData || snapshot.data!.statusCode != 200) {
+                    return const Padding(padding: EdgeInsets.all(20.0), child: Text('Failed to load support channels.', style: TextStyle(color: Colors.red)));
+                  }
+
+                  final data = json.decode(snapshot.data!.body);
+                  if (data['success'] != true || data['contacts'].isEmpty) {
+                    return const Padding(padding: EdgeInsets.all(20.0), child: Text('No active support channels at this time.'));
+                  }
+
+                  return Column(
+                    children: (data['contacts'] as List).map<Widget>((contact) {
+                      IconData icon;
+                      Color iconColor;
+                      if (contact['support_type'] == 'whatsapp') {
+                        icon = Icons.chat_bubble_outline;
+                        iconColor = Colors.green;
+                      } else if (contact['support_type'] == 'phone') {
+                        icon = Icons.phone_outlined;
+                        iconColor = primaryColor;
+                      } else {
+                        icon = Icons.email_outlined;
+                        iconColor = Colors.orange;
+                      }
+
+                      return ListTile(
+                        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: iconColor)),
+                        title: Text(contact['name'], style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+                        subtitle: Text(contact['contact_value'], style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                        onTap: () => _launchURL(contact['support_type'], contact['contact_value']),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _launchURL(String type, String value) async {
+    Uri? uri;
+    if (type == 'whatsapp') {
+      final cleanPhone = value.replaceAll(RegExp(r'[^\d+]'), '');
+      uri = Uri.parse('https://wa.me/$cleanPhone');
+    } else if (type == 'phone') {
+      uri = Uri.parse('tel:$value');
+    } else if (type == 'email') {
+      uri = Uri.parse('mailto:$value');
+    }
+
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not launch application')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -54,6 +141,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onWillPop: onWillPop,
       child: Scaffold(
         body: IndexedStack(index: _currentIndex, children: _screens),
+        
+        // SUPPORT FLOATING ACTION BUTTON
+        floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
+          onPressed: _showSupportSheet,
+          backgroundColor: Theme.of(context).primaryColor,
+          elevation: 4,
+          child: const Icon(Icons.support_agent, color: Colors.white),
+        ) : null,
+        
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
@@ -114,7 +210,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   @override
   void initState() {
     super.initState();
-    _loadBalanceVisibility(); // 2. Load persisted hidden state
+    _loadBalanceVisibility(); 
     _fetchDashboardData();
     _enforceSecurityPin();
     _checkNotifications();
@@ -151,7 +247,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isBalanceHidden = !_isBalanceHidden;
-      prefs.setBool('hide_balance', _isBalanceHidden); // Persist user choice
+      prefs.setBool('hide_balance', _isBalanceHidden); 
     });
   }
 
@@ -196,7 +292,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     } catch (_) {}
   }
 
-  // ── In-app notifications ──────────────────────────────────────────
   Future<void> _checkNotifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -271,7 +366,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   }
 
   Future<void> _dismissCurrentNotification(dynamic notificationId) async {
-    Navigator.of(context).pop(); // close current dialog
+    Navigator.of(context).pop(); 
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('api_token') ?? '';
@@ -385,7 +480,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     );
   }
 
-  // 4. Solid, smaller ATM Dots
   Widget _buildAtmDot(Color color) {
     return Container(
       width: 14,
@@ -514,19 +608,16 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                               children: [
                                 Expanded(
                                   child: _isBalanceHidden 
-                                    // 5. Hide Naira sign completely -> "****"
                                     ? const Text('****', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 2.0))
                                     : RichText(
                                         text: TextSpan(
                                           children: [
-                                            // 6. Reduced size to 26
                                             const TextSpan(text: '₦', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
                                             TextSpan(text: _formatBalance(_balance), style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                                           ]
                                         )
                                       ),
                                 ),
-                                // 3. Toggle view moved directly next to the amount
                                 GestureDetector(
                                   onTap: _toggleBalance, 
                                   child: Icon(_isBalanceHidden ? Icons.visibility_off : Icons.visibility, color: Colors.white, size: 24)
@@ -559,7 +650,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                         )
                       ],
                     ),
-                    // 4. ATM Dots: Top Right, solid colors, separated by 4px gap, smaller size
                     Positioned(
                       top: 0,
                       right: 0,
