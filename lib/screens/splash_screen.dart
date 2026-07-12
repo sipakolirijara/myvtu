@@ -19,7 +19,9 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  String _appName = 'Kainuwa VTU';
+  
+  // GENERIC WHITE-LABEL FALLBACK
+  String _appName = 'VTU Service';
 
   @override
   void initState() {
@@ -40,7 +42,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _initializeApp() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _appName = prefs.getString('app_name') ?? 'Kainuwa VTU';
+      _appName = prefs.getString('app_name') ?? 'VTU Service';
     });
 
     try {
@@ -48,11 +50,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
-          final liveName = data['settings']['website_name'] ?? 'Kainuwa VTU';
-          final liveColorHex = data['settings']['primary_color'] ?? '#7351FF';
+          final liveName = data['settings']['website_name'] ?? 'VTU Service';
+          final liveColorHex = data['settings']['primary_color'] ?? '#800080';
+          final livePrefix = data['settings']['transaction_prefix'] ?? 'VTU';
           
           await prefs.setString('app_name', liveName);
           await prefs.setString('primary_color', liveColorHex);
+          await prefs.setString('transaction_prefix', livePrefix); // Cache the dynamic prefix
           
           primaryColorNotifier.value = Color(int.parse(liveColorHex.replaceAll('#', '0xFF')));
           
@@ -70,7 +74,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final isLocked = prefs.getBool('app_lock_enabled') ?? false;
     
     if (token != null && token.isNotEmpty) {
-      // FIX: If app lock is enabled, route them to the UNLOCK screen first!
       if (isLocked) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AppLockScreen(isSetup: false)));
       } else {
