@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'login_screen.dart';
 import 'security_settings_screen.dart';
 import 'edit_profile_screen.dart';
+import 'update_pin_screen.dart';
+import 'update_password_screen.dart';
 import '../main.dart'; 
 
 class ProfileScreen extends StatefulWidget {
@@ -41,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // SHARE APP FEATURE
   Future<void> _shareApp() async {
     try {
       final response = await http.get(Uri.parse(ApiConfig.baseUrl + 'get_settings.php')).timeout(const Duration(seconds: 5));
@@ -55,11 +56,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     } catch (_) {}
-    // Fallback if network fails
     Share.share('Download Kainuwa VTU to buy cheap data and airtime instantly!');
   }
 
-  // DYNAMIC CUSTOMER SUPPORT SHEET
   void _showSupportSheet() {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -146,56 +145,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showSetPinDialog(bool requireCurrent) {
-    final currentPinController = TextEditingController();
-    final newPinController = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        title: Text(requireCurrent ? 'Change Payment PIN' : 'Set Payment PIN', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (requireCurrent) ...[
-              const Text('Current PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              TextField(controller: currentPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, style: const TextStyle(letterSpacing: 8.0)),
-              const SizedBox(height: 12),
-            ],
-            const Text('New PIN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            TextField(controller: newPinController, obscureText: true, keyboardType: TextInputType.number, maxLength: 4, textAlign: TextAlign.center, style: const TextStyle(letterSpacing: 8.0)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            onPressed: () async {
-              if (newPinController.text.length == 4) {
-                Navigator.pop(context);
-                await _setPin(newPinController.text, currentPinController.text);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN must be 4 digits')));
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
-  Future<void> _setPin(String newPin, String currentPin) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('api_token') ?? '';
-    final response = await http.post(Uri.parse(ApiConfig.baseUrl + 'set_pin.php'), body: {'token': token, 'new_pin': newPin, 'current_pin': currentPin});
-    final data = json.decode(response.body);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: data['success'] ? Colors.green : Colors.red));
-    if (data['success']) _fetchProfile(); 
-  }
-
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('api_token');
@@ -209,6 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isVerified = _profile!['kyc_status'] == 'verified';
 
     return Scaffold(
       appBar: AppBar(title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)), automaticallyImplyLeading: false),
@@ -225,27 +175,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text('${_profile!['first_name']} ${_profile!['last_name']}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   Text('${_profile!['email']}', style: const TextStyle(color: Colors.grey)),
                   const SizedBox(height: 8),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Text('${_profile!['role']}', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12))),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
+                    decoration: BoxDecoration(color: isVerified ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), 
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(isVerified ? Icons.verified : Icons.warning_amber_rounded, size: 14, color: isVerified ? Colors.green : Colors.orange),
+                        const SizedBox(width: 4),
+                        Text(isVerified ? 'Verified' : 'Unverified', style: TextStyle(color: isVerified ? Colors.green : Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    )
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
             
-            Text('GENERAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
+            // THEME TOGGLE MOVED TO TOP
+            Text('DISPLAY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
             const SizedBox(height: 12),
-            _buildProfileMenu(Icons.person_outline, 'Edit Profile', 'Update your personal details', () async {
-              final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(currentProfile: _profile!)));
-              if (result == true) _fetchProfile(); // Refresh if edited
-            }, primaryColor, isDark),
-            _buildProfileMenu(Icons.support_agent, 'Customer Support', 'Contact us for help', _showSupportSheet, primaryColor, isDark),
-            _buildProfileMenu(Icons.share_outlined, 'Share App', 'Invite your friends', _shareApp, primaryColor, isDark),
-            
-            const SizedBox(height: 24),
-            Text('SECURITY & DISPLAY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
-            const SizedBox(height: 12),
-
             Container(
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
               child: SwitchListTile(
                 title: const Text('Dark Mode Display', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
@@ -259,10 +210,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
             ),
+
+            Text('GENERAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
+            const SizedBox(height: 12),
+            _buildProfileMenu(Icons.person_outline, 'Edit Profile', 'Update your personal details', () async {
+              final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(currentProfile: _profile!)));
+              if (result == true) _fetchProfile();
+            }, primaryColor, isDark),
+            _buildProfileMenu(Icons.support_agent, 'Customer Support', 'Contact us for help', _showSupportSheet, primaryColor, isDark),
+            _buildProfileMenu(Icons.share_outlined, 'Share App', 'Invite your friends', _shareApp, primaryColor, isDark),
+            
+            const SizedBox(height: 24),
+            Text('SECURITY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),
+            const SizedBox(height: 12),
+
             _buildProfileMenu(Icons.security, 'App Security', 'Auto-logout & Biometrics', () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SecuritySettingsScreen()));
             }, primaryColor, isDark),
-            _buildProfileMenu(Icons.lock, _profile!['has_pin'] ? 'Change Payment PIN' : 'Set Payment PIN', _profile!['has_pin'] ? '****' : 'Not Set', () => _showSetPinDialog(_profile!['has_pin']), primaryColor, isDark),
+            
+            _buildProfileMenu(Icons.lock_reset, 'Change Password', 'Update login password', () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const UpdatePasswordScreen()));
+            }, primaryColor, isDark),
+
+            _buildProfileMenu(Icons.pin, _profile!['has_pin'] ? 'Change Payment PIN' : 'Set Payment PIN', _profile!['has_pin'] ? '****' : 'Not Set', () async {
+              final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => UpdatePinScreen(hasPin: _profile!['has_pin'])));
+              if (result == true) _fetchProfile();
+            }, primaryColor, isDark),
             
             const SizedBox(height: 24),
             Text('ACCOUNT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2)),

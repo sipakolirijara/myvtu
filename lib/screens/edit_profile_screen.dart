@@ -17,6 +17,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
   bool _isLoading = false;
+  late bool _isKycVerified;
 
   @override
   void initState() {
@@ -24,14 +25,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _firstNameController = TextEditingController(text: widget.currentProfile['first_name']);
     _lastNameController = TextEditingController(text: widget.currentProfile['last_name']);
     _phoneController = TextEditingController(text: widget.currentProfile['phone']);
-  }
-
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _phoneController.dispose();
-    super.dispose();
+    _isKycVerified = widget.currentProfile['kyc_status'] == 'verified';
   }
 
   Future<void> _saveProfile() async {
@@ -61,7 +55,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (data['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.green));
-          Navigator.pop(context, true); // Pop with 'true' to tell Profile screen to refresh
+          Navigator.pop(context, true); 
         }
       } else {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.red));
@@ -89,9 +83,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            _buildTextField('First Name', Icons.person_outline, _firstNameController, isDark),
+            _buildTextField('First Name', Icons.person_outline, _firstNameController, isDark, isLocked: _isKycVerified),
             const SizedBox(height: 20),
-            _buildTextField('Last Name', Icons.person_outline, _lastNameController, isDark),
+            _buildTextField('Last Name', Icons.person_outline, _lastNameController, isDark, isLocked: _isKycVerified),
+            
+            if (_isKycVerified)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock, size: 14, color: Colors.orange),
+                    const SizedBox(width: 4),
+                    Text('Name fields are locked after verification.', style: TextStyle(fontSize: 12, color: Colors.orange.shade700, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+
             const SizedBox(height: 20),
             _buildTextField('Phone Number', Icons.phone_outlined, _phoneController, isDark, isNumber: true),
             const SizedBox(height: 40),
@@ -113,7 +120,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildTextField(String label, IconData icon, TextEditingController controller, bool isDark, {bool isNumber = false}) {
+  Widget _buildTextField(String label, IconData icon, TextEditingController controller, bool isDark, {bool isNumber = false, bool isLocked = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -123,10 +130,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
           child: TextField(
             controller: controller,
+            readOnly: isLocked,
             keyboardType: isNumber ? TextInputType.phone : TextInputType.text,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: isLocked ? Colors.grey : (isDark ? Colors.white : Colors.black87)),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: Colors.grey.shade400),
+              suffixIcon: isLocked ? const Icon(Icons.lock_outline, color: Colors.orange, size: 18) : null,
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 16),
             ),
