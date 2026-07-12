@@ -6,6 +6,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dashboard_screen.dart';
+import '../main.dart'; // Imports isAppLockActive
 
 class AppLockScreen extends StatefulWidget {
   final bool isSetup;
@@ -31,48 +32,76 @@ class _AppLockScreenState extends State<AppLockScreen> {
   bool _hasError = false;
   bool _useBiometric = false;
   bool _canCheckBiometrics = false;
+  
+  // FIX: Prevents the fingerprint scanner from firing twice
+  bool _isAuthenticating = false;
 
   @override
   void initState() {
     super.initState();
+    isAppLockActive = true; 
     if (!widget.isSetup) {
-      _checkBiometricSupport();
+      _initializeAndPrompt();
     }
   }
 
-  Future<void> _checkBiometricSupport() async {
-    final prefs = await SharedPreferences.getInstance();
-    final wantsBiometric = prefs.getBool('use_biometric') ?? false;
-    bool canCheck = false;
-    try {
-      canCheck = await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
-    } catch (e) {}
+  @override
+  void dispose() {
+    isAppLockActive = false; 
+    super.dispose();
+  }
 
-    if (mounted) {
-      setState(() {
-        _canCheckBiometrics = canCheck;
-        _useBiometric = wantsBiometric && canCheck;
-      });
-      if (_useBiometric) {
-         _authenticate(isAutoPrompt: true);
+  Future<void> _initializeAndPrompt() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    setState(() {
+      _useBiometric = prefs.getBool('use_biometric') ?? false;
+    });
+
+    if (_useBiometric) {
+      try {
+        _canCheckBiometrics = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+        if (_canCheckBiometrics && mounted) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) _authenticate(isAutoPrompt: true);
+        }
+      } catch (e) {
+        // Ignore silent startup errors
       }
     }
   }
 
   Future<void> _authenticate({bool isAutoPrompt = false}) async {
-    if (!_canCheckBiometrics) return; 
+    if (!_canCheckBiometrics || _isAuthenticating) return;
+    
+    setState(() => _isAuthenticating = true);
+
     try {
       final authenticated = await _auth.authenticate(
         localizedReason: 'Scan your fingerprint to unlock',
-        options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true, useErrorDialogs: true),
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+          useErrorDialogs: true,
+        ),
       );
       if (authenticated && mounted) {
         _unlockSuccess();
       }
-    } on PlatformException catch (e) {
-      if (mounted && !isAutoPrompt) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Biometric Error: ${e.message}'), backgroundColor: Colors.red));
     } catch (e) {
-      if (mounted && !isAutoPrompt) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Biometric authentication failed.'), backgroundColor: Colors.red));
+      if (!isAutoPrompt && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fingerprint authentication failed or cancelled.'), 
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          )
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAuthenticating = false);
+      }
     }
   }
 
@@ -111,9 +140,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
         if (_enteredPin == _firstPin) {
           await prefs.setString('app_lock_pin', _enteredPin);
           await prefs.setBool('app_lock_enabled', true);
-          await prefs.setInt('lock_setting', 2);
+          await prefs.setInt('lock_setting', 2); // Default "Always Ask"
           
-          final hardwareSupport = await _auth.canCheckBiometrics && await _auth.isDeviceSupported();
+          final hardwareSupport = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
           if (hardwareSupport && mounted) {
             _showBiometricPrompt(prefs);
           } else {
@@ -285,11 +314,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   void _unlockSuccess() {
     if (widget.isFromResume) {
-      Navigator.pop(context); 
+      if (mounted) Navigator.pop(context); 
     } else if (widget.onSuccess != null) {
       widget.onSuccess!(); 
     } else {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+      if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
     }
   }
 
@@ -307,10 +336,12 @@ class _AppLockScreenState extends State<AppLockScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 40),
-            Icon(Icons.lock_outline, size: 40, color: primaryColor),
-            const SizedBox(height: 12),
-            Text(titleText, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            // FIX: Replaced Expanded with Spacers to tightly control the gap
+            const Spacer(flex: 2),
+            
+            Icon(Icons.lock_outline, size: 50, color: primaryColor),
+            const SizedBox(height: 16),
+            Text(titleText, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 30),
             
             Row(
@@ -327,9 +358,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
             ),
             
             if (_hasError && !widget.isSetup)
-              const Padding(padding: EdgeInsets.only(top: 16), child: Text('Incorrect PIN', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+              const Padding(padding: EdgeInsets.only(top: 16), child: Text('Incorrect PIN', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))
+            else
+              const SizedBox(height: 35),
             
-            const Spacer(),
+            const Spacer(flex: 2), // Balances the space perfectly between dots and numpad
             
             if (!widget.isSetup)
               TextButton(
@@ -338,11 +371,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
               ),
               
             Container(
-              padding: const EdgeInsets.only(bottom: 30, left: 40, right: 40),
+              padding: const EdgeInsets.only(bottom: 20, left: 40, right: 40),
               child: GridView.count(
                 shrinkWrap: true,
                 crossAxisCount: 3,
-                childAspectRatio: 1.5,
+                childAspectRatio: 1.6, // FIX: Flattens buttons slightly, removing vertical stretching
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 physics: const NeverScrollableScrollPhysics(),
@@ -354,6 +387,8 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 ],
               ),
             ),
+            
+            const Spacer(flex: 1), // Small cushion at the absolute bottom
           ],
         ),
       ),
