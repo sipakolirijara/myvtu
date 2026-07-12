@@ -46,7 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Future.value(true);
   }
 
-  // DYNAMIC CUSTOMER SUPPORT SHEET
   void _showSupportSheet() {
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -142,7 +141,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
         body: IndexedStack(index: _currentIndex, children: _screens),
         
-        // SUPPORT FLOATING ACTION BUTTON
         floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
           onPressed: _showSupportSheet,
           backgroundColor: Theme.of(context).primaryColor,
@@ -175,7 +173,7 @@ class ServicesPlaceholderView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('All Services', style: TextStyle(fontWeight: FontWeight.bold))),
-      body: const Center(child: Text('Service categories will be configured here soon.', style: TextStyle(color: Colors.grey))),
+      body: const Center(child: Text('Additional service categories will be dynamically loaded here.', style: TextStyle(color: Colors.grey))),
     );
   }
 }
@@ -206,14 +204,64 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
 
   List<dynamic> _notificationQueue = [];
   int _notificationIndex = 0;
+  
+  // DYNAMIC SERVICES LIST
+  List<dynamic> _activeServices = [];
+  bool _isLoadingServices = true;
 
   @override
   void initState() {
     super.initState();
     _loadBalanceVisibility(); 
     _fetchDashboardData();
+    _fetchActiveServices(); // Initialize dynamic services
     _enforceSecurityPin();
     _checkNotifications();
+  }
+
+  // HELPER TO CONVERT DB STRINGS TO FLUTTER ICONS
+  IconData _getIconFromName(String iconName) {
+    switch (iconName) {
+      case 'phone_android': return Icons.phone_android;
+      case 'wifi': return Icons.wifi;
+      case 'tv': return Icons.tv;
+      case 'bolt': return Icons.bolt;
+      case 'school': return Icons.school;
+      case 'verified_user': return Icons.verified_user;
+      case 'contact_page': return Icons.contact_page;
+      case 'sports_soccer': return Icons.sports_soccer;
+      default: return Icons.grid_view_rounded;
+    }
+  }
+
+  // HELPER TO NAVIGATE BASED ON SERVICE SLUG
+  void _handleServiceNavigation(String slug) {
+    switch (slug) {
+      case 'airtime': Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen())); break;
+      case 'data': Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen())); break;
+      case 'cable': Navigator.push(context, MaterialPageRoute(builder: (_) => const CablePurchaseScreen())); break;
+      case 'electricity': Navigator.push(context, MaterialPageRoute(builder: (_) => const ElectricityPurchaseScreen())); break;
+      case 'exam_pins': Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamPinPurchaseScreen())); break;
+      default: ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Module coming soon!')));
+    }
+  }
+
+  // FETCH DYNAMIC SERVICES
+  Future<void> _fetchActiveServices() async {
+    try {
+      final response = await http.get(Uri.parse(ApiConfig.baseUrl + 'get_active_services.php'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && mounted) {
+          setState(() {
+            _activeServices = data['services'];
+            _isLoadingServices = false;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingServices = false);
+    }
   }
 
   String _formatBalance(String balance) {
@@ -310,12 +358,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
 
   Map<String, dynamic> _severityStyle(String severity) {
     switch (severity) {
-      case 'critical':
-        return {'color': Colors.red, 'icon': Icons.error_outline};
-      case 'warning':
-        return {'color': Colors.orange, 'icon': Icons.warning_amber_rounded};
-      default:
-        return {'color': Colors.blue, 'icon': Icons.info_outline};
+      case 'critical': return {'color': Colors.red, 'icon': Icons.error_outline};
+      case 'warning': return {'color': Colors.orange, 'icon': Icons.warning_amber_rounded};
+      default: return {'color': Colors.blue, 'icon': Icons.info_outline};
     }
   }
 
@@ -574,7 +619,10 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _fetchDashboardData,
+        onRefresh: () async {
+          await _fetchDashboardData();
+          await _fetchActiveServices();
+        },
         color: primaryColor,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -676,20 +724,31 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
               Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
               const SizedBox(height: 16),
 
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                children: [
-                  _buildServiceTile(context, Icons.phone_android, 'Airtime', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen()))),
-                  _buildServiceTile(context, Icons.wifi, 'Data Plans', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataPurchaseScreen()))),
-                  _buildServiceTile(context, Icons.tv, 'Cable TV', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CablePurchaseScreen()))),
-                  _buildServiceTile(context, Icons.bolt, 'Electricity', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ElectricityPurchaseScreen()))),
-                  _buildServiceTile(context, Icons.school, 'Exam Pins', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamPinPurchaseScreen()))),
-                ],
-              )
+              // DYNAMIC SERVICES GRID
+              if (_isLoadingServices)
+                 Center(child: Padding(padding: const EdgeInsets.all(20), child: CircularProgressIndicator(color: primaryColor)))
+              else if (_activeServices.isEmpty)
+                 const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No active services available.', style: TextStyle(color: Colors.grey))))
+              else
+                 GridView.builder(
+                   shrinkWrap: true,
+                   physics: const NeverScrollableScrollPhysics(),
+                   itemCount: _activeServices.length,
+                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                     crossAxisCount: 3,
+                     mainAxisSpacing: 16,
+                     crossAxisSpacing: 16,
+                   ),
+                   itemBuilder: (context, index) {
+                     final service = _activeServices[index];
+                     return _buildServiceTile(
+                       context, 
+                       _getIconFromName(service['icon_name']), 
+                       service['service_name'], 
+                       () => _handleServiceNavigation(service['service_slug'])
+                     );
+                   },
+                 )
             ],
           ),
         ),
@@ -708,7 +767,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
           children: [
             Icon(icon, color: Theme.of(context).primaryColor, size: 28),
             const SizedBox(height: 8),
-            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
           ],
         ),
       ),
