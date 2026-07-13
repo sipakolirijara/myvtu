@@ -8,13 +8,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'wallet_screen.dart';
 import 'profile_screen.dart';
 import 'data_purchase_screen.dart';
-import 'all_services_screen.dart';
 import 'airtime_purchase_screen.dart';
 import 'cable_purchase_screen.dart';
 import 'electricity_purchase_screen.dart';
 import 'exam_pin_purchase_screen.dart';
 import 'fund_wallet_screen.dart';
 import 'transfer_screen.dart';
+import 'all_services_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -31,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     DashboardHomeView(
       onNavigateToProfile: () => setState(() => _currentIndex = 3),
       onNavigateToHistory: () => setState(() => _currentIndex = 2),
+      onNavigateToServices: () => setState(() => _currentIndex = 1),
     ),
     const AllServicesScreen(),
     const WalletScreen(),
@@ -168,25 +169,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-class ServicesPlaceholderView extends StatelessWidget {
-  const ServicesPlaceholderView({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('All Services', style: TextStyle(fontWeight: FontWeight.bold))),
-      body: const Center(child: Text('Additional service categories will be dynamically loaded here.', style: TextStyle(color: Colors.grey))),
-    );
-  }
-}
-
 class DashboardHomeView extends StatefulWidget {
   final VoidCallback onNavigateToProfile; 
   final VoidCallback onNavigateToHistory; 
+  final VoidCallback onNavigateToServices; 
   
   const DashboardHomeView({
     Key? key, 
     required this.onNavigateToProfile,
     required this.onNavigateToHistory,
+    required this.onNavigateToServices,
   }) : super(key: key);
 
   @override
@@ -206,7 +198,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
   List<dynamic> _notificationQueue = [];
   int _notificationIndex = 0;
   
-  // DYNAMIC SERVICES LIST
   List<dynamic> _activeServices = [];
   bool _isLoadingServices = true;
 
@@ -215,12 +206,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     super.initState();
     _loadBalanceVisibility(); 
     _fetchDashboardData();
-    _fetchActiveServices(); // Initialize dynamic services
+    _fetchActiveServices(); 
     _enforceSecurityPin();
     _checkNotifications();
   }
 
-  // HELPER TO CONVERT DB STRINGS TO FLUTTER ICONS
   IconData _getIconFromName(String iconName) {
     switch (iconName) {
       case 'phone_android': return Icons.phone_android;
@@ -231,11 +221,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
       case 'verified_user': return Icons.verified_user;
       case 'contact_page': return Icons.contact_page;
       case 'sports_soccer': return Icons.sports_soccer;
+      case 'business_center': return Icons.business_center; // Added CAC Icon
       default: return Icons.grid_view_rounded;
     }
   }
 
-  // HELPER TO NAVIGATE BASED ON SERVICE SLUG
   void _handleServiceNavigation(String slug) {
     switch (slug) {
       case 'airtime': Navigator.push(context, MaterialPageRoute(builder: (_) => const AirtimePurchaseScreen())); break;
@@ -247,7 +237,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     }
   }
 
-  // FETCH DYNAMIC SERVICES
   Future<void> _fetchActiveServices() async {
     try {
       final response = await http.get(Uri.parse(ApiConfig.baseUrl + 'get_active_services.php'));
@@ -591,6 +580,31 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     );
   }
 
+  // --- DYNAMIC GRID LOGIC ---
+  Widget _buildServiceTile(BuildContext context, IconData icon, String title, VoidCallback onTap, {bool isMore = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: isMore ? BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle) : null,
+              child: Icon(icon, color: primaryColor, size: 28),
+            ),
+            const SizedBox(height: 8),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
@@ -599,6 +613,9 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
     List<String> nameParts = _appName.split(' ');
     String firstWord = nameParts.isNotEmpty ? nameParts[0] : 'App';
     String secondWord = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+    // Limit grid to 6 items. If more than 6, 6th item becomes "More"
+    int displayCount = _activeServices.length > 6 ? 6 : _activeServices.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -722,10 +739,19 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
 
               const SizedBox(height: 24),
               
-              Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E1E1E))),
+                  if (_activeServices.length > 6)
+                    GestureDetector(
+                      onTap: widget.onNavigateToServices,
+                      child: Text('View All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryColor)),
+                    ),
+                ],
+              ),
               const SizedBox(height: 16),
 
-              // DYNAMIC SERVICES GRID
               if (_isLoadingServices)
                  Center(child: Padding(padding: const EdgeInsets.all(20), child: CircularProgressIndicator(color: primaryColor)))
               else if (_activeServices.isEmpty)
@@ -734,13 +760,17 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                  GridView.builder(
                    shrinkWrap: true,
                    physics: const NeverScrollableScrollPhysics(),
-                   itemCount: _activeServices.length,
+                   itemCount: displayCount,
                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                      crossAxisCount: 3,
                      mainAxisSpacing: 16,
                      crossAxisSpacing: 16,
                    ),
                    itemBuilder: (context, index) {
+                     if (index == 5 && _activeServices.length > 6) {
+                       return _buildServiceTile(context, Icons.grid_view, 'More', widget.onNavigateToServices, isMore: true);
+                     }
+                     
                      final service = _activeServices[index];
                      return _buildServiceTile(
                        context, 
@@ -752,24 +782,6 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                  )
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildServiceTile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade100)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Theme.of(context).primaryColor, size: 28),
-            const SizedBox(height: 8),
-            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
-          ],
         ),
       ),
     );
