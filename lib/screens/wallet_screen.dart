@@ -82,15 +82,12 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
-  void _openReceipt(dynamic t) {
+  void _openReceipt(dynamic t, String displayTitle) {
     final isSuccess = t['status'].toString().toLowerCase() == 'success';
     final amountFormatted = double.tryParse(t['amount'].toString())?.toStringAsFixed(2) ?? '0.00';
-    
-    // FIX: Show exact category from DB. Only format underscores.
-    final displayCategory = t['category'].toString().toUpperCase().replaceAll('_', ' ');
 
     final txData = {
-      'Service': displayCategory,
+      'Service': displayTitle,
       'Reference': t['reference'] ?? 'N/A',
       'Target/Phone': t['recipient_target'] ?? 'N/A',
       'Amount': '₦$amountFormatted',
@@ -100,7 +97,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionStatusScreen(
       isSuccess: isSuccess, message: isSuccess ? 'Transaction was successful' : 'Transaction failed or is pending', 
-      transactionData: txData, onDone: () {} // Navigation pop is handled inside the screen now
+      transactionData: txData, onDone: () {}
     )));
   }
 
@@ -202,11 +199,13 @@ class _WalletScreenState extends State<WalletScreen> {
                         final statusColor = (rawStatus == 'success' || rawStatus == 'successful') ? Colors.green : (rawStatus == 'pending' ? Colors.orange : Colors.red);
                         final bgStatusColor = isCredit ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1);
                         
-                        // Clean Category display
-                        final displayCat = t['category'].toString().toUpperCase().replaceAll('_', ' ');
+                        // FIX: Prioritize description from database if it exists, otherwise fallback to category
+                        final displayTitle = (t['description'] != null && t['description'].toString().isNotEmpty)
+                            ? t['description'].toString()
+                            : t['category'].toString().toUpperCase().replaceAll('_', ' ');
 
                         return GestureDetector(
-                          onTap: () => _openReceipt(t),
+                          onTap: () => _openReceipt(t, displayTitle),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(16),
@@ -219,7 +218,7 @@ class _WalletScreenState extends State<WalletScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(displayCat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
+                                      Text(displayTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
                                       const SizedBox(height: 4),
                                       Text(t['created_at'], style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
                                     ],
