@@ -133,7 +133,7 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
         
         if (result == true) {
            _amountController.clear();
-           _fetchFundingMethods(); // Refresh balance upon successful return
+           _fetchFundingMethods(); // Refresh balance!
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Failed to initialize payment'), backgroundColor: Colors.red));
@@ -197,40 +197,39 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
     );
   }
 
+  // FIXED: Replaced ScrollView with Expanded Row so tabs never hide
   Widget _buildTabs(Color primaryColor, bool isDark) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (hasMonnify) _buildTabItem('auto', 'Auto Transfer', Icons.account_balance, primaryColor, isDark),
-            if (hasCard) _buildTabItem('card', 'Fund with Card', Icons.credit_card, primaryColor, isDark),
-            if (hasManual) _buildTabItem('manual', 'Manual Bank', Icons.menu_book, primaryColor, isDark),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E1E1E) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
+      child: Row(
+        children: [
+          if (hasMonnify) _buildTabItem('auto', 'Auto Transfer', Icons.account_balance, primaryColor, isDark),
+          if (hasCard) _buildTabItem('card', 'Fund with Card', Icons.credit_card, primaryColor, isDark),
+          if (hasManual) _buildTabItem('manual', 'Manual Bank', Icons.menu_book, primaryColor, isDark),
+        ],
       ),
     );
   }
 
+  // FIXED: Expanded widget forces them to fit the screen evenly
   Widget _buildTabItem(String id, String title, IconData icon, Color primaryColor, bool isDark) {
     bool isActive = _activeTab == id;
-    return GestureDetector(
-      onTap: () => setState(() => _activeTab = id),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-        margin: const EdgeInsets.only(right: 4),
-        decoration: BoxDecoration(color: isActive ? primaryColor : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: isActive ? Colors.white : (isDark ? Colors.grey.shade400 : Colors.grey.shade600)),
-            const SizedBox(width: 6),
-            Text(title, style: TextStyle(fontSize: 12, fontWeight: isActive ? FontWeight.bold : FontWeight.w600, color: isActive ? Colors.white : (isDark ? Colors.grey.shade400 : Colors.grey.shade600))),
-          ],
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _activeTab = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(color: isActive ? primaryColor : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: isActive ? Colors.white : (isDark ? Colors.grey.shade400 : Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: isActive ? FontWeight.bold : FontWeight.w600, color: isActive ? Colors.white : (isDark ? Colors.grey.shade400 : Colors.grey.shade600))),
+            ],
+          ),
         ),
       ),
     );
@@ -281,7 +280,17 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
               ),
               const SizedBox(height: 24),
               if (hasPaystack && hasFlutterwave) ...[
-                Row(children: [Expanded(child: _buildGatewaySelector('paystack', 'Paystack', primaryColor, isDark)), const SizedBox(width: 12), Expanded(child: _buildGatewaySelector('flutterwave', 'Flutterwave', primaryColor, isDark))]),
+                Row(children: [
+                  Expanded(child: _buildGatewaySelector('paystack', 'Paystack', primaryColor, isDark)), 
+                  const SizedBox(width: 12), 
+                  Expanded(child: _buildGatewaySelector('flutterwave', 'Flutterwave', primaryColor, isDark))
+                ]),
+                const SizedBox(height: 24),
+              ] else if (hasPaystack) ...[
+                _buildGatewaySelector('paystack', 'Paystack', primaryColor, isDark),
+                const SizedBox(height: 24),
+              ] else if (hasFlutterwave) ...[
+                _buildGatewaySelector('flutterwave', 'Flutterwave', primaryColor, isDark),
                 const SizedBox(height: 24),
               ],
               Container(
@@ -305,14 +314,47 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
     );
   }
 
+  // FIXED: Explicitly showing the specific gateway fee upfront
   Widget _buildGatewaySelector(String id, String title, Color primaryColor, bool isDark) {
     bool isSelected = _selectedGateway == id;
-    return GestureDetector(onTap: () => setState(() => _selectedGateway = id), child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: isSelected ? primaryColor.withOpacity(0.1) : (isDark ? Colors.black26 : Colors.white), border: Border.all(color: isSelected ? primaryColor : (isDark ? Colors.grey.shade800 : Colors.grey.shade200)), borderRadius: BorderRadius.circular(12)), child: Center(child: Text(title, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? primaryColor : Colors.grey.shade500)))));
+    String feeText = _formatFeeText(id);
+    return GestureDetector(
+      onTap: () => setState(() => _selectedGateway = id), 
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12), 
+        decoration: BoxDecoration(
+          color: isSelected ? primaryColor.withOpacity(0.1) : (isDark ? Colors.black26 : Colors.white), 
+          border: Border.all(color: isSelected ? primaryColor : (isDark ? Colors.grey.shade800 : Colors.grey.shade200)), 
+          borderRadius: BorderRadius.circular(12)
+        ), 
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? primaryColor : Colors.grey.shade500)),
+            const SizedBox(height: 4),
+            Text('Fee: $feeText', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isSelected ? primaryColor : Colors.grey.shade400)),
+          ],
+        )
+      )
+    );
   }
 
   Widget _buildManualTab(Color primaryColor, bool isDark) {
-    // Correctly fetches the manual config established in the PHP API
     final config = _providers?['manual'] ?? {};
+    
+    // Safety check: If the admin hasn't saved the manual details yet, they will be empty
+    String bankName = config['manual_bank']?.toString().trim() ?? '';
+    String accNumber = config['manual_account']?.toString().trim() ?? '';
+    String accName = config['manual_name']?.toString().trim() ?? '';
+
+    if (bankName.isEmpty && accNumber.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.amber.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.amber.withOpacity(0.3))),
+        child: const Text('Manual Funding is active, but the bank details have not been set up yet. Please ask the Admin to configure them in the Payment Gateway settings.', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, height: 1.5)),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -321,8 +363,7 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
         Text('Please transfer funds to the account below.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
         const SizedBox(height: 20),
         
-        // This explicitly calls the card builder with manual_bank, manual_account, and manual_name
-        _buildAccountCard(config['manual_bank'], config['manual_account'], config['manual_name'], primaryColor, isDark),
+        _buildAccountCard(bankName, accNumber, accName, primaryColor, isDark),
         
         if ((config['instructions'] ?? '').isNotEmpty) ...[
           const SizedBox(height: 16),
