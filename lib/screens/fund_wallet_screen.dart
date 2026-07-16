@@ -126,7 +126,6 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
       final data = json.decode(response.body);
 
       if (data['success'] == true && data['checkout_url'] != null) {
-        // Navigate to our Custom Webview
         final result = await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => PaymentWebViewScreen(url: data['checkout_url'], reference: data['reference'])),
@@ -134,7 +133,7 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
         
         if (result == true) {
            _amountController.clear();
-           _fetchFundingMethods(); // Refresh balance!
+           _fetchFundingMethods(); // Refresh balance upon successful return
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Failed to initialize payment'), backgroundColor: Colors.red));
@@ -209,7 +208,7 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
           children: [
             if (hasMonnify) _buildTabItem('auto', 'Auto Transfer', Icons.account_balance, primaryColor, isDark),
             if (hasCard) _buildTabItem('card', 'Fund with Card', Icons.credit_card, primaryColor, isDark),
-            if (hasManual) _buildTabItem('manual', 'Manual', Icons.menu_book, primaryColor, isDark),
+            if (hasManual) _buildTabItem('manual', 'Manual Bank', Icons.menu_book, primaryColor, isDark),
           ],
         ),
       ),
@@ -312,6 +311,7 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
   }
 
   Widget _buildManualTab(Color primaryColor, bool isDark) {
+    // Correctly fetches the manual config established in the PHP API
     final config = _providers?['manual'] ?? {};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +320,10 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
         const SizedBox(height: 6),
         Text('Please transfer funds to the account below.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
         const SizedBox(height: 20),
+        
+        // This explicitly calls the card builder with manual_bank, manual_account, and manual_name
         _buildAccountCard(config['manual_bank'], config['manual_account'], config['manual_name'], primaryColor, isDark),
+        
         if ((config['instructions'] ?? '').isNotEmpty) ...[
           const SizedBox(height: 16),
           Container(
@@ -346,7 +349,15 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
             children: [
               Container(width: 40, height: 40, decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle), child: Icon(Icons.account_balance, color: primaryColor, size: 20)),
               const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Bank Name', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold)), Text(bankName ?? 'N/A', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87))])),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, 
+                  children: [
+                    Text('Bank Name', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold)), 
+                    Text(bankName ?? 'N/A', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87))
+                  ]
+                )
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -359,7 +370,14 @@ class _FundWalletScreenState extends State<FundWalletScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(accNumber ?? 'N/A', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryColor, letterSpacing: 1.5)),
-                GestureDetector(onTap: () => _copyText(accNumber ?? '', 'Account Number'), child: Icon(Icons.copy, size: 20, color: Colors.grey.shade500)),
+                GestureDetector(
+                  onTap: () => _copyText(accNumber ?? '', 'Account Number'), 
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Icon(Icons.copy, size: 20, color: primaryColor)
+                  )
+                ),
               ],
             ),
           ),

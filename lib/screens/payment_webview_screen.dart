@@ -30,12 +30,21 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
           onPageFinished: (String url) {
             if (mounted) setState(() { _isLoading = false; });
           },
+          onNavigationRequest: (NavigationRequest request) {
+            // INTERCEPTOR: Automatically detect when the gateway finishes and redirects back
+            if (request.url.contains('index.php') || request.url.contains('transactions.php')) {
+              _verifyAndReturn();
+              return NavigationDecision.prevent; // Stop the webview, trigger the app's success flow
+            }
+            return NavigationDecision.navigate;
+          },
         ),
       )
       ..loadRequest(Uri.parse(widget.url));
   }
 
   Future<void> _verifyAndReturn() async {
+    if (_isVerifying) return; // Prevent double taps
     setState(() { _isVerifying = true; });
 
     try {
@@ -78,7 +87,7 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
             const SizedBox(height: 16),
             const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Your wallet has been credited.', textAlign: TextAlign.center),
+            const Text('Your wallet has been instantly credited.', textAlign: TextAlign.center),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -87,8 +96,12 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
                   Navigator.pop(context); // Close dialog
                   Navigator.pop(context, true); // Return to dashboard with success flag
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: const Text('Return to Dashboard', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor, 
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 14)
+                ),
+                child: const Text('Return to Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             )
           ],
@@ -107,28 +120,28 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
         foregroundColor: Colors.black,
         elevation: 1,
         leading: IconButton(
-          icon: const Icon(Icons.home, size: 26),
-          onPressed: _isVerifying ? null : _verifyAndReturn,
+          icon: const Icon(Icons.home, size: 26, color: Colors.black87),
+          onPressed: _isVerifying ? null : _verifyAndReturn, // Home icon acts as a manual fallback
         ),
       ),
       body: Stack(
         children: [
           WebViewWidget(controller: controller),
           if (_isLoading)
-            const Center(child: CircularProgressIndicator()),
+            Center(child: CircularProgressIndicator(color: primaryColor)),
           if (_isVerifying)
             Container(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withOpacity(0.7),
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircularProgressIndicator(color: primaryColor),
-                      const SizedBox(height: 16),
-                      const Text('Verifying Payment...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                      const SizedBox(height: 20),
+                      const Text('Verifying Payment...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
                     ],
                   ),
                 ),
